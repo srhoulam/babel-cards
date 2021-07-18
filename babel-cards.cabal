@@ -1,0 +1,78 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 190a0fc960ad628b36464268de45d4ac8adc78ad01be67aae089d8e1c376d960
+
+name:           babel-cards
+version:        0.1.0
+synopsis:       A flash-cards memorization assistant.
+description:    A flash-cards memorization assistant.
+                Babel Cards is a flash-cards memorization assistant like Anki, but, the author hopes, without its shortcomings.
+                Whereas Anki stores behavior specifications in cards, limiting the usage of sets of cards and demanding duplication of the same data set, Babel Cards will instead separate behavior out so you can mix-and-match card decks and application behavior.
+                Whereas Anki's data model is painful for power users, Babel Cards will use native database representations whenever possible and not store serialized objects in text columns. The user's data belongs to the user, and should be usable to the user even in the absence of the application that created it. 
+category:       Education
+homepage:       https://github.com/srhoulam/babel-cards#readme
+bug-reports:    https://github.com/srhoulam/babel-cards/issues
+author:         Saad Rhoulam
+maintainer:     saad@rhoulam.com
+copyright:      Copyright 2021 Saad Rhoulam, all rights reserved.
+license:        GPL-2
+build-type:     Simple
+extra-source-files:
+    ChangeLog.md
+    LICENSE.md
+    README.md
+    package.yaml
+    stack.yaml
+
+source-repository head
+  type: git
+  location: https://github.com/srhoulam/babel-cards
+
+library
+  exposed-modules:
+      Application
+      Import
+      Import.Main
+      Model
+      Settings
+      Types
+      Util.String
+  other-modules:
+      Paths_babel_cards
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints
+  build-depends:
+      aeson
+    , base >=4.11 && <10
+    , brick
+    , bytestring
+    , directory
+    , file-embed
+    , filepath
+    , monad-logger
+    , persistent
+    , persistent-sqlite
+    , persistent-template
+    , rio >=0.1.12.0
+    , text
+    , yaml
+  default-language: Haskell2010
+
+executable babel-cards-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_babel_cards
+  hs-source-dirs:
+      app
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N -O2
+  build-depends:
+      babel-cards
+    , base >=4.11 && <10
+    , optparse-simple
+    , rio >=0.1.12.0
+  default-language: Haskell2010

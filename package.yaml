@@ -1,0 +1,89 @@
+name:                babel-cards
+version:             '0.1.0'
+github:              srhoulam/babel-cards
+license:             GPL-2
+author:              Saad Rhoulam
+maintainer:          saad@rhoulam.com
+copyright:           Copyright 2021 Saad Rhoulam, all rights reserved.
+
+synopsis: A flash-cards memorization assistant.
+description: "A flash-cards memorization assistant.
+
+Babel Cards is a flash-cards memorization assistant like Anki,
+but, the author hopes, without its shortcomings.
+
+Whereas Anki stores behavior specifications in cards, limiting
+the usage of sets of cards and demanding duplication of the same
+data set, Babel Cards will instead separate behavior out so you
+can mix-and-match card decks and application behavior.
+
+Whereas Anki's data model is painful for power users, Babel Cards
+will use native database representations whenever possible and
+not store serialized objects in text columns. The user's data
+belongs to the user, and should be usable to the user even in the
+absence of the application that created it.
+"
+
+category: Education
+
+extra-source-files:
+- ChangeLog.md
+- LICENSE.md
+- README.md
+- package.yaml
+- stack.yaml
+
+dependencies:
+- base >= 4.11 && < 10
+- rio >= 0.1.12.0
+ 
+ghc-options:
+- -Wall
+- -Wcompat
+- -Widentities
+- -Wincomplete-record-updates
+- -Wincomplete-uni-patterns
+- -Wpartial-fields
+- -Wredundant-constraints
+
+library:
+  source-dirs: src
+  dependencies:
+  - aeson
+  - brick
+  - bytestring
+  - directory
+  - file-embed
+  - filepath
+  - monad-logger
+  - persistent
+  - persistent-sqlite
+  - persistent-template
+  - text
+  - yaml
+
+executables:
+  babel-cards-exe:
+    main:                Main.hs
+    source-dirs:         app
+    dependencies:
+    - babel-cards
+    - optparse-simple
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -O2
+
+# tests:
+#   babel-cards-test:
+#     main:                Spec.hs
+#     source-dirs:         test
+#     dependencies:
+#     - babel-cards
+#     - hspec
+
+#     ghc-options:
+#     - -threaded
+#     - -rtsopts
+#     - -with-rtsopts=-N
