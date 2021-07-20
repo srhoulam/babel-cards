@@ -15,10 +15,12 @@
 
 module Model where
 
-import           Database.Persist.Quasi      (lowerCaseSettings)
+import           Database.Persist.Quasi (lowerCaseSettings)
 import           Database.Persist.TH
 import           RIO
-import           RIO.Text                    (Text)
+import           RIO.Text               (Text)
+import           RIO.Time               (UTCTime)
+import           Types.Review
 
 -- You can define all of your database entities in the entities file.
 -- You can find more information on persistent and how to declare entities

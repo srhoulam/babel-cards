@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 190a0fc960ad628b36464268de45d4ac8adc78ad01be67aae089d8e1c376d960
+-- hash: ce97f0b58a02d456e9c205d6a27898039bf9555525fe3f7b3c77121c61452d17
 
 name:           babel-cards
 version:        0.1.0
@@ -35,11 +35,15 @@ source-repository head
 library
   exposed-modules:
       Application
+      Application.Database
+      Application.Scheduler
+      Application.TUI
       Import
       Import.Main
       Model
       Settings
       Types
+      Types.Review
       Util.String
   other-modules:
       Paths_babel_cards
@@ -52,6 +56,7 @@ library
     , brick
     , bytestring
     , directory
+    , esqueleto
     , file-embed
     , filepath
     , monad-logger
@@ -60,6 +65,8 @@ library
     , persistent-template
     , rio >=0.1.12.0
     , text
+    , transformers
+    , vty
     , yaml
   default-language: Haskell2010
 

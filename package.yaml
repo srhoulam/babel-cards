@@ -53,6 +53,7 @@ library:
   - brick
   - bytestring
   - directory
+  - esqueleto
   - file-embed
   - filepath
   - monad-logger
@@ -60,6 +61,8 @@ library:
   - persistent-sqlite
   - persistent-template
   - text
+  - transformers
+  - vty
   - yaml
 
 executables:

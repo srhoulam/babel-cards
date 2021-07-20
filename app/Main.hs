@@ -35,4 +35,4 @@ main = do
           , bEmbeddedSettings = settings
           , bConnPool = connPool
           }
-     in runRIO babel babelMain
+     in runRIO babel bootstrapBabel

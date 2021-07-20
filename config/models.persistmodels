@@ -1,3 +1,58 @@
-Item json
-  name   Text
-  amount Int
+Card
+  obverse Text
+  reverse Text
+  enabled Bool
+
+Deck
+  name        Text
+  description Text
+
+DeckMember
+  deckId DeckId
+  cardId CardId
+  ease   Double
+  UniqueDeckCard deckId cardId
+
+Tag
+  name Text
+  UniqueTag name
+
+TagMember
+  tagId  TagId
+  cardId CardId
+  UniqueTagCard tagId cardId
+
+-- | Per-deck queues for implementing the scheduler.
+-- Cards are placed in different queues based on past
+-- user performance in order that we can build a session
+-- out of cards from each difficulty level.
+QueueItem
+  deckId  DeckId
+  index   Int
+  cardId  CardId
+  due     UTCTime
+  created UTCTime
+  UniqueQueueCard deckId index cardId
+
+-- | This log not only tracks correctness of user answers,
+-- but also *how* incorrectly the user answered via word
+-- distance. Additionally, retrieving the latest entry for
+-- a card is a way to determine how recently the card has
+-- been seen.
+ReviewLog
+  deckId    DeckId
+  cardId    CardId
+  distance  Int
+  -- ^ (Damerau-)Levenstein distance from correct answer.
+  -- Could make for useful plots!
+  -- User answered correctly if zero.
+  duration  Int
+  -- ^ How long it took the user to answer. I.e., time from
+  -- being presented the card to the user committing to an
+  -- answer.
+  ease      ReviewEase
+  -- ^ How easy the user rated this card. Greater is easier.
+  queue     Int
+  -- ^ The queue the card was drawn from.
+  timestamp UTCTime
+
