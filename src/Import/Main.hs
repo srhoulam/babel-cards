@@ -11,6 +11,7 @@ import           Settings                as Import.Main (loadSettings)
 import           System.Directory        (createDirectoryIfMissing)
 import           System.Environment
 import           System.FilePath.Posix
+import           System.Random.TF.Init   as Import.Main (newTFGen)
 import           Util.String             (mapText)
 
 createConnPool :: BabelEmbeddedSettings -> IO ConnectionPool
@@ -29,3 +30,10 @@ ensureDataDirExists settings = do
   let dataDir = home </> besUserDataDir settings
   createDirectoryIfMissing True dataDir
   return dataDir
+
+-- | FIXME: actually load config!
+loadConfig :: IO BabelConfig
+loadConfig = return BabelConfig
+  { bcMaxInterval = 864000 -- 10 days
+  , bcMinInterval = 600 -- 10 minutes
+  }

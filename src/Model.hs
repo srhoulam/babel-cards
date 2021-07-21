@@ -17,6 +17,7 @@ module Model where
 
 import           Database.Persist.Quasi (lowerCaseSettings)
 import           Database.Persist.TH
+import           Database.Persist.Types (Entity)
 import           RIO
 import           RIO.Text               (Text)
 import           RIO.Time               (UTCTime)
@@ -28,3 +29,9 @@ import           Types.Review
 -- http://www.yesodweb.com/book/persistent/
 share [mkPersist sqlSettings, mkMigrate "migrateAll"]
     $(persistFileWith lowerCaseSettings "config/models.persistmodels")
+
+data DeckMetadata = DeckMetadata
+  { dmDeckEntity  :: !(Entity Deck)
+  , dmCardCount   :: !Int
+  , dmLastStudied :: !(Maybe UTCTime)
+  }

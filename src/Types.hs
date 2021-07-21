@@ -1,14 +1,17 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE TemplateHaskell   #-}
 module Types where
 
-import           Data.Aeson              (FromJSON (..), Options (..),
-                                          defaultOptions, genericParseJSON)
+import           Data.Aeson              (Options (..), defaultOptions)
+import           Data.Aeson.TH
 import           Database.Persist.Sql    (ConnectionPool)
 import           Database.Persist.Sqlite (SqliteConf)
 import           GHC.Generics
 import           RIO
 import           RIO.Process
+import           RIO.Time                (NominalDiffTime)
+import           System.Random.TF
 import           Util.String             (decapitalize)
 
 -- | Command line arguments
@@ -21,19 +24,25 @@ data Babel = Babel
   , bProcessContext   :: !ProcessContext
   , bOptions          :: !CmdLineOptions
   , bConnPool         :: !ConnectionPool
+  , bRNG              :: !(TVar TFGen)
+  , bConfig           :: !BabelConfig
   , bEmbeddedSettings :: !BabelEmbeddedSettings
+  }
+
+data BabelConfig = BabelConfig
+  { bcMaxInterval :: !NominalDiffTime
+  , bcMinInterval :: !NominalDiffTime
   }
 
 data BabelEmbeddedSettings = BabelEmbeddedSettings
   { besUserDataDir :: !String
   -- ^ User data directory, as a relpath from the
   -- user's $HOME.
-  , besDatabase :: !SqliteConf
+  , besDatabase    :: !SqliteConf
   } deriving Generic
 
-instance FromJSON BabelEmbeddedSettings where
-  parseJSON = genericParseJSON defaultOptions
-    { fieldLabelModifier = decapitalize . drop 3 }
+$(deriveFromJSON defaultOptions { fieldLabelModifier = decapitalize . drop 3 } 'BabelEmbeddedSettings)
+$(deriveJSON defaultOptions { fieldLabelModifier = decapitalize . drop 2} 'BabelConfig)
 
 instance HasLogFunc Babel where
   logFuncL = lens bLogFunc (\x y -> x { bLogFunc = y })

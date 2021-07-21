@@ -1,10 +1,13 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 module Application.Scheduler where
 
-import Application.Database
-import RIO
-import RIO.Time (addUTCTime, diffUTCTime, getCurrentTime, nominalDay)
-import Types.Review
+import           Application.Database
+import           RIO
+import           RIO.Time             (addUTCTime, diffUTCTime, getCurrentTime,
+                                       nominalDay)
+import           System.Random
+import           Types
+import           Types.Review
 
 rescheduleCard :: DeckId
                -> CardId
@@ -16,36 +19,48 @@ rescheduleCard :: DeckId
 rescheduleCard deckId cardId (Entity qiid qi) True reviewEase = do
   case (queueItemIndex qi, reviewEase) of
     -- NOTE: ease doesn't go down on new/learning cards
-    (0, ReviewEasy) -> updateCardEase deckId cardId reviewEase
-    (0, _) -> return ()
-    (1, ReviewEasy) -> updateCardEase deckId cardId reviewEase
-    (1, _) -> return ()
-    (2, _) -> updateCardEase deckId cardId reviewEase
-    (_, _) -> error "rescheduleCard: out-of-bounds queue index"
+    (NewQueue, ReviewEasy)      -> updateCardEase deckId cardId reviewEase
+    (NewQueue, _)               -> return ()
+    (LearningQueue, ReviewEasy) -> updateCardEase deckId cardId reviewEase
+    (LearningQueue, _)          -> return ()
+    (ReviewQueue, _)            -> updateCardEase deckId cardId reviewEase
 
   newEase <- fromMaybe
     (error "rescheduleCard: DeckMember doesn't exist??")
     <$> retrieveCardEase deckId cardId
+  env <- lift ask
+  fuzzFactor <- runRIO env generateFuzz
   now <- getCurrentTime
+
   let newQueueIndex =
         case (queueItemIndex qi, newEase < 1.0, newEase >= 2.0) of
-          (0, _, _) -> 1
-          (1, _, False) -> 1
-          (1, _, True) -> 2
-          (2, True, _) -> 1
-          (2, _, _) -> 2
-          (_, _, _) -> error "rescheduleCard: out-of-bounds queue index"
+          (NewQueue, _, _)          -> LearningQueue
+          (LearningQueue, _, False) -> LearningQueue
+          (LearningQueue, _, True)  -> ReviewQueue
+          (ReviewQueue, True, _)    -> LearningQueue
+          (ReviewQueue, _, _)       -> ReviewQueue
       oldInterval = diffUTCTime now (queueItemCreated qi)
-      newInterval = realToFrac newEase * oldInterval
+      maxInterval = bcMaxInterval $ bConfig env
+      minInterval = bcMinInterval $ bConfig env
+      newInterval = max minInterval
+        $ min maxInterval
+        $ product
+        [ realToFrac fuzzFactor
+        , realToFrac newEase
+        , oldInterval
+        ]
       newDueDate = addUTCTime newInterval now
 
   delete qiid
   enqueueCard newQueueIndex newDueDate deckId cardId
 
 rescheduleCard deckId cardId (Entity qiid qi) False reviewEase = do
-  case reviewEase of
-    ReviewAgain -> updateCardEase deckId cardId reviewEase
-    _ -> updateCardEase deckId cardId ReviewHard
+  case (queueItemIndex qi, reviewEase) of
+    -- NOTE: ease doesn't go down on new/learning cards
+    (NewQueue, _)              -> return ()
+    (LearningQueue, _)         -> return ()
+    (ReviewQueue, ReviewAgain) -> updateCardEase deckId cardId reviewEase
+    (ReviewQueue, _)           -> updateCardEase deckId cardId ReviewHard
 
   newEase <- fromMaybe
     (error "rescheduleCard: DeckMember doesn't exist??")
@@ -53,13 +68,27 @@ rescheduleCard deckId cardId (Entity qiid qi) False reviewEase = do
   now <- getCurrentTime
   let newQueueIndex =
         case (queueItemIndex qi, newEase < 1.0, newEase >= 2.0) of
-          (0, _, _) -> 1
-          (1, _, False) -> 1
-          (1, _, True) -> 2
-          (2, True, _) -> 1
-          (2, _, _) -> 2
-          (_, _, _) -> error "rescheduleCard: out-of-bounds queue index"
+          (NewQueue, _, _)          -> LearningQueue
+          (LearningQueue, _, False) -> LearningQueue
+          (LearningQueue, _, True)  -> ReviewQueue
+          (ReviewQueue, True, _)    -> LearningQueue
+          (ReviewQueue, _, _)       -> ReviewQueue
       newDueDate = addUTCTime nominalDay now
 
   delete qiid
   enqueueCard newQueueIndex newDueDate deckId cardId
+
+generateFuzz :: RIO Babel Double
+generateFuzz = do
+  rngTV <- asks bRNG
+  fuzzInt <- atomically $ do
+    rng <- readTVar rngTV
+    let (fuzz, newRNG) = random rng
+    writeTVar rngTV newRNG
+    return fuzz
+
+  let fuzzFactor = 0.05
+        * fromIntegral (fuzzInt :: Int)
+        / fromIntegral (maxBound :: Int)
+
+  return fuzzFactor

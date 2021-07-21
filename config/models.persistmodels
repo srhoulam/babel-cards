@@ -28,7 +28,7 @@ TagMember
 -- out of cards from each difficulty level.
 QueueItem
   deckId  DeckId
-  index   Int
+  index   QueueIndex
   cardId  CardId
   due     UTCTime
   created UTCTime
@@ -52,7 +52,7 @@ ReviewLog
   -- answer.
   ease      ReviewEase
   -- ^ How easy the user rated this card. Greater is easier.
-  queue     Int
+  queue     QueueIndex
   -- ^ The queue the card was drawn from.
   timestamp UTCTime
 

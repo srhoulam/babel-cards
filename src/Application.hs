@@ -6,8 +6,9 @@ import           Database.Persist.Sql   (runMigration)
 -- import           Model
 import           RIO
 import           Types
+import Application.TUI (lifecycle)
 
 bootstrapBabel :: RIO Babel ()
 bootstrapBabel = do
   runDB $ runMigration migrateAll
-  -- TODO
+  lifecycle

@@ -6,10 +6,10 @@ author:              Saad Rhoulam
 maintainer:          saad@rhoulam.com
 copyright:           Copyright 2021 Saad Rhoulam, all rights reserved.
 
-synopsis: A flash-cards memorization assistant.
-description: "A flash-cards memorization assistant.
+synopsis: A flash-cards memorization tool.
+description: "A flash-cards memorization tool.
 
-Babel Cards is a flash-cards memorization assistant like Anki,
+Babel Cards is a flash-cards memorization tool like Anki,
 but, the author hopes, without its shortcomings.
 
 Whereas Anki stores behavior specifications in cards, limiting
@@ -52,6 +52,7 @@ library:
   - aeson
   - brick
   - bytestring
+  - containers
   - directory
   - esqueleto
   - file-embed
@@ -60,13 +61,15 @@ library:
   - persistent
   - persistent-sqlite
   - persistent-template
+  - random
   - text
+  - tf-random
   - transformers
   - vty
   - yaml
 
 executables:
-  babel-cards-exe:
+  babel-cards:
     main:                Main.hs
     source-dirs:         app
     dependencies:

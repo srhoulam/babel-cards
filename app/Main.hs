@@ -13,25 +13,28 @@ main :: IO ()
 main = do
   (options, ()) <- simpleOptions
     $(simpleVersion Paths_babel_cards.version)
-    "Header for command line arguments"
-    "Program description, also for command line arguments"
+    "BabelCards command-line interface"
+    "BabelCards is a flash-cards study aid."
     (CmdLineOptions
        <$> switch ( long "verbose"
-                 <> short 'v'
-                 <> help "Verbose output?"
-                  )
+                    <> short 'v'
+                    <> help "Verbose output?")
     )
     empty
 
   lo <- logOptionsHandle stderr (optionsVerbose options)
   pc <- mkDefaultProcessContext
   settings <- loadSettings
+  config <- loadConfig
+  rngTV <- newTFGen >>= newTVarIO
   connPool <- createConnPool settings
   withLogFunc lo $ \lf ->
     let babel = Babel
           { bLogFunc = lf
           , bProcessContext = pc
           , bOptions = options
+          , bRNG = rngTV
+          , bConfig = config
           , bEmbeddedSettings = settings
           , bConnPool = connPool
           }
