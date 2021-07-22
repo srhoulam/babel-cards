@@ -2,6 +2,7 @@
 {-# LANGUAGE EmptyDataDecls             #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE FunctionalDependencies     #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
@@ -18,6 +19,7 @@ module Model where
 import           Database.Persist.Quasi (lowerCaseSettings)
 import           Database.Persist.TH
 import           Database.Persist.Types (Entity)
+import           Lens.Micro.TH
 import           RIO
 import           RIO.Text               (Text)
 import           RIO.Time               (UTCTime)
@@ -29,6 +31,9 @@ import           Types.Review
 -- http://www.yesodweb.com/book/persistent/
 share [mkPersist sqlSettings, mkMigrate "migrateAll"]
     $(persistFileWith lowerCaseSettings "config/models.persistmodels")
+
+makeLensesWith camelCaseFields ''Card
+makeLensesWith camelCaseFields ''Deck
 
 data DeckMetadata = DeckMetadata
   { dmDeckEntity  :: !(Entity Deck)

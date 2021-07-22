@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4835b81b05471858e7e85425ef90005353a52923499a4449dc83c2e5419cbd31
+-- hash: 4fde194f696b0b94c80772e3e95c24155b2e91b943887cc178cbf7ef67ade9d4
 
 name:           babel-cards
 version:        0.1.0
@@ -61,6 +61,7 @@ library
     , esqueleto
     , file-embed
     , filepath
+    , microlens-th
     , monad-logger
     , persistent
     , persistent-sqlite
