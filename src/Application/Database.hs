@@ -67,6 +67,18 @@ retrieveCardEase deckId = fmap (fmap (deckMemberEase . entityVal))
   . getBy
   . UniqueDeckCard deckId
 
+retrieveCards :: BabelQuery [Entity Card]
+retrieveCards =
+  E.select $ E.from $ \(card `E.LeftOuterJoin` tm `E.LeftOuterJoin` dm) -> do
+    E.on $ card E.^. CardId           E.==. dm   E.^. DeckMemberCardId
+    E.on $ card E.^. CardId           E.==. tm   E.^. TagMemberCardId
+
+    E.groupBy $ card E.^. CardId
+    let numDecks = E.countDistinct $ dm E.^. DeckMemberId :: E.SqlExpr (E.Value Int)
+        numTags  = E.countDistinct $ tm E.^. TagMemberId  :: E.SqlExpr (E.Value Int)
+    E.orderBy [ E.asc numDecks, E.asc numTags ]
+    return card
+
 retrieveDeckSummaries :: BabelQuery [DeckMetadata]
 retrieveDeckSummaries = do
   summaries <- E.select $ E.from $ \(deck `E.LeftOuterJoin` dm `E.LeftOuterJoin` rl) -> do
@@ -81,7 +93,7 @@ retrieveDeckSummaries = do
            )
 
   return $ mkDeckMetadata <$> summaries
-  where mkDeckMetadata (_deckEntity, E.Value _lastStudied, E.Value _cardCount) =
+  where mkDeckMetadata (deckMetadataDeckEntity, E.Value deckMetadataLastStudied, E.Value deckMetadataCardCount) =
           DeckMetadata {..}
 
 retrieveNextCard :: DeckId -> BabelQuery (Maybe (Entity Card))
@@ -116,6 +128,9 @@ retrieveOrCreateTag tagName' = do
   case mayTag of
     Just (Entity tid _) -> return tid
     Nothing             -> insert $ Tag tagName'
+
+retrieveTags :: BabelQuery [Entity Tag]
+retrieveTags = selectList [] []
 
 updateCardEase :: DeckId -> CardId -> ReviewEase -> BabelQuery ()
 updateCardEase deckId cardId ReviewAgain = updateWhere

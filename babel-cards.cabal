@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 74ff7ad6298c7bc5c792db969bc8935ed56c223f2144585438870cbdc7231c17
+-- hash: 67a9b8a3198a938c7654f25bb2ac3b6ad78c844dff1761868d71835300caa941
 
 name:           babel-cards
 version:        0.1.0
@@ -63,6 +63,7 @@ library
     , filepath
     , interpolate
     , microlens
+    , microlens-platform
     , microlens-th
     , monad-logger
     , persistent

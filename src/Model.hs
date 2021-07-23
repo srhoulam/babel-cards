@@ -15,7 +15,9 @@
 
 module Model where
 
+import           Database.Persist.Class (ToBackendKey)
 import           Database.Persist.Quasi (lowerCaseSettings)
+import           Database.Persist.Sql   (Key, SqlBackend, fromSqlKey)
 import           Database.Persist.TH
 import           Database.Persist.Types (Entity)
 import           Lens.Micro.TH
@@ -31,14 +33,21 @@ import           Types.Review
 share [mkPersist sqlSettings, mkMigrate "migrateAll"]
     $(persistFileWith lowerCaseSettings "config/models.persistmodels")
 
-makeLensesWith camelCaseFields ''Card
-makeLensesWith camelCaseFields ''Deck
+makeFields ''Entity
+makeFields ''Card
+makeFields ''Deck
 
-data DeckMetadata = DeckMetadata
-  { _deckEntity  :: !(Entity Deck)
-  , _cardCount   :: !Int
-  , _lastStudied :: !(Maybe UTCTime)
+data CardMetadata = CardMetadata
+  { cardMetadataCardEntity :: !(Entity Card)
+  , cardMetadataDecks      :: ![DeckId]
+  , cardMetadataTags       :: ![TagId]
   }
 
-makeLenses ''DeckMetadata
-makeLensesWith camelCaseFields ''Entity
+data DeckMetadata = DeckMetadata
+  { deckMetadataDeckEntity  :: !(Entity Deck)
+  , deckMetadataCardCount   :: !Int
+  , deckMetadataLastStudied :: !(Maybe UTCTime)
+  }
+
+keyToInt :: ToBackendKey SqlBackend record => Key record -> Int
+keyToInt = fromIntegral . fromSqlKey

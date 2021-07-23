@@ -7,7 +7,7 @@ module Application.TUI where
 import           Application.Database
 import           Brick
 import           Brick.BChan
-import           Brick.Forms                      (checkboxField, editTextField, 
+import           Brick.Forms                      (checkboxField, editTextField,
                                                    formState, handleFormEvent,
                                                    newForm, renderForm, (@@=))
 import           Brick.Main
@@ -19,8 +19,9 @@ import           Brick.Widgets.Dialog             (dialog)
 import           Brick.Widgets.Edit               (Editor, editor,
                                                    handleEditorEvent,
                                                    renderEditor)
-import           Brick.Widgets.List
-                                            -- listSelectedElement, renderList)
+import           Brick.Widgets.List               hiding (reverse)
+import qualified Data.IntMap.Strict as IntMap
+import           Data.Maybe                       (fromJust)
 import qualified Data.Sequence                    as Seq (filter, fromList,
                                                           singleton, (|>))
 import           Data.String.Interpolate.IsString
@@ -28,12 +29,12 @@ import qualified Data.Text                        as Text (unpack)
 import qualified Graphics.Vty                     (defaultConfig, mkVty)
 import           Graphics.Vty.Attributes
 import           Graphics.Vty.Input.Events
-import           Lens.Micro
-import           Model
-import           RIO                              hiding (view)
-import           RIO.List                         (headMaybe)
+import           Lens.Micro.Platform hiding (view)
+-- import           Model
+import           RIO                              hiding (reverse, view)
+-- import           RIO.List                         (headMaybe)
 import           RIO.Time
-import Text.Printf
+import           Text.Printf
 import           Types
 import           Types.TUI
 
@@ -55,12 +56,33 @@ lifecycle = do
           ]
         appChooseCursor = showFirstCursor
         appStartEvent st = do
-          availDecks <- runRIO (st ^. babel) $ runDB $ retrieveDeckSummaries
+          (availCards, availDecks, availTags) <- runRIO (st ^. babel) $ runDB $ do
+            availCards <- retrieveCards
+            availDecks <- retrieveDeckSummaries
+            availTags  <- retrieveTags
+            return (availCards, availDecks, availTags)
           -- TODO: load modes, when lua scripting is implemented
+          let dmap = IntMap.fromList
+                $ (\dm -> (keyToInt $ dm ^. deckEntity . key, dm))
+                <$> availDecks
+              deckIds = (^. deckEntity . key) <$> availDecks
+              cmap = IntMap.fromList
+                $ (\ce -> (keyToInt $ ce ^. key, ce))
+                <$> availCards
+              cardIds = (^. key) <$> availCards
+              tmap = IntMap.fromList
+                $ (\te -> (keyToInt $ te ^. key, te))
+                <$> availTags
+              tagIds = (^. key) <$> availTags
           return
             $ st
-            & availableDecks .~ list "availableDecks" (Seq.fromList availDecks) 1
+            & cardMap .~ cmap
+            & deckMap .~ dmap
+            & tagMap  .~ tmap
+            & availableCards .~ list "availableCards" (Seq.fromList cardIds) 1
+            & availableDecks .~ list "availableDecks" (Seq.fromList deckIds) 1
             & availableModes .~ list "availableModes" (Seq.singleton Standard) 1
+            & availableTags  .~ list "availableTags"  (Seq.fromList tagIds) 1
 
         appHandleEvent st evt = do
           case evt of
@@ -68,13 +90,15 @@ lifecycle = do
               CreateDeck deck -> do
                 deckId <- liftIO $ runRIO (st ^. babel) $ runDB $ insert deck
                 continue $ st
+                  & deckMap %~ IntMap.insert (keyToInt deckId) (newDeckMetadata $ Entity deckId deck)
                   & availableDecks . listElementsL
-                  %~ (Seq.|> newDeckMetadata (Entity deckId deck))
+                  %~ (Seq.|> deckId)
               DeleteDeck deckId -> do
                 liftIO $ runRIO (st ^. babel) $ runDB $ delete deckId
                 continue $ st
+                  & deckMap %~ IntMap.delete (keyToInt deckId)
                   & availableDecks . listElementsL
-                  %~ Seq.filter ((deckId /=) . (^. deckEntity . key))
+                  %~ Seq.filter (deckId /=)
 
             VtyEvent event -> case st ^. view of
               Start -> do
@@ -126,36 +150,27 @@ lifecycle = do
               DecksOverview False -> do
                 updatedList <- handleListEvent event $ st ^. availableDecks
                 let newState = st & availableDecks .~ updatedList
-                    selectedDeck = _deckEntity . snd <$> listSelectedElement updatedList
+                    selectedDeckId = fromJust $ keyToInt . snd <$> listSelectedElement updatedList
+                    selectedDeck = fromJust $ st ^. deckMap . at selectedDeckId
+
                 case event of
                   EvKey KEsc [] -> continue $ newState & view .~ Start
                   EvKey KEnter [] -> continue $ newState
                     & view .~ DeckManagement
-                    & activeDeck .~ selectedDeck
+                    & activeDeck .~ selectedDeck ^? deckEntity
 
                   EvKey (KChar 'a') [] -> continue $ newState
                     & view .~ AddNewDeck
                     & deckForm .~ deckForm'
                   EvKey KDel [] -> continue $ newState
-                    & activeDeck .~ selectedDeck
+                    & activeDeck .~ selectedDeck ^? deckEntity
                     & view .~ DecksOverview True
                     & answerForm .~ answerForm'
                   _ -> continue newState
             _ -> continue st
 
         appDraw st = catMaybes
-          [ case st ^. view of
-              DecksOverview deleting -> do
-                guard deleting
-                Entity _ deck <- st ^. activeDeck
-                return $ vCenter
-                  $ borderWithLabel (str "Delete Deck")
-                  $ vBox
-                  [ hCenter $ strWrap [i|To confirm deletion, write '#{deck ^. name}' in the box below and press ENTER. This cannot be undone. To cancel, press ESC.|]
-                  , hCenter $ border $ renderForm $ st ^. answerForm
-                  ]
-              _ -> Nothing
-
+          [ deleteDeckConfirm st
           , Just $ case st ^. view of
               Start -> applicationTitle
                 $ vBox
@@ -177,9 +192,26 @@ lifecycle = do
               Playing ->
                 error "playing"
 
-              AddNewCard ->
-                error "AddNewCard"
-              CardsOverview ->
+              AddNewCard -> applicationTitle
+                $ vBox
+                [ hBorderWithLabel (str "Add New Card")
+                , vCenter $ renderForm $ st ^. cardForm
+                , hCenter $ strWrap "Press TAB to proceed to the next field."
+                , hCenter $ strWrap "Press Shift+TAB to return to a previous field."
+                , hCenter $ strWrap "Press Ctrl+D when finished."
+                ]
+
+              CardsOverview _ -> -- TODO NOW
+                -- SKETCH:
+                -- - a list of tags to apply to the active card
+                -- - a list of decks to assign the active card to
+                -- - one can then assign the active card to the selected
+                --   deck or to the selected tag while scrolling through
+                --   the card list
+                -- - card relations to tags and decks are loaded once
+                --   they become the selected card in the list; this
+                --   i/o will be mitigated by layers of caches
+                --   (libsqlite, os disk cache, etc.)
                 error "CardsOverview"
               CardManagement ->
                 error "CardManagement"
@@ -197,29 +229,39 @@ lifecycle = do
                 [ hBorderWithLabel (str "Decks")
                 , vCenter
                   $ vBox
-                  [ hCenter $ renderList renderDeckMenuOption True $ st ^. availableDecks
+                  [ hCenter
+                    $ renderList (renderDeckMenuOption $ st ^. deckMap) True
+                    $ st ^. availableDecks
                   , hCenter (strWrap "Press ENTER to make a selection.")
                   , hCenter (strWrap "Press A to add a new deck.")
                   , hCenter (strWrap "Press DEL to delete the selected deck.")
                   , hCenter (strWrap "Press ESC to return.")
                   ]
                 ]
-              DeckManagement ->
-                error "DeckManagement"
+              DeckManagement -> applicationTitle
+                $ vBox
+                [ hBorderWithLabel (str $ Text.unpack $ st ^?! activeDeck . _Just . val . name)
+                -- TODO: list cards in this deck
+                -- TODO: enable removing cards from deck
+                ]
+                -- error "DeckManagement"
                 -- TODO: deck form for editing the active deck's
                 --       name and desc
-                -- TODO: assign cards to this deck. sort unassigned
-                --       cards first!
 
               Credits -> error "Credits"
           ]
 
-        renderDeckMenuOption _ dm = hBox
-          [ padRight Max $ str $ Text.unpack $ dm ^. deckEntity . val . name
-          , str $ printf "%7d" $ dm ^. cardCount
-          , padLeft Max $ str $ maybe "Never" (formatTime defaultTimeLocale "%_Y-%m-%d %T") $ dm ^. lastStudied
+        renderDeckMenuOption :: IntMap DeckMetadata -> Bool -> DeckId -> Widget a
+        renderDeckMenuOption dmap _ deckId = hBox
+          [ padRight Max $ str $ Text.unpack
+            $ dmap ^?! at (keyToInt deckId) . _Just . deckEntity . val . name
+          , str $ printf "%7d"
+            $ dmap ^?! at (keyToInt deckId) . _Just . cardCount
+          , padLeft Max $ str
+            $ maybe "Never" (formatTime defaultTimeLocale "%_Y-%m-%d %T")
+            $ dmap ^? at (keyToInt deckId) . _Just . lastStudied . _Just
           ]
-          <=> strWrap (Text.unpack $ dm ^. deckEntity . val . description)
+          <=> strWrap (Text.unpack $ dmap ^. at (keyToInt deckId) . _Just . deckEntity . val . description)
 
         renderStartOption _ (_, label) =
           hCenter $ strWrap label
@@ -234,17 +276,23 @@ lifecycle = do
           , _activeCard = Nothing
           , _activeDeck = Nothing
 
+          , _cardMap = mempty
+          , _deckMap = mempty
+          , _tagMap  = mempty
+
           , _answerForm = answerForm'
           , _cardForm = cardForm'
           , _deckForm = deckForm'
 
+          , _availableCards = list "availableCards" mempty 1
           , _availableDecks = list "availableDecks" mempty 1
           , _availableModes = list "availableModes" mempty 1
+          , _availableTags  = list "availableTags"  mempty 1
           , _startOptions = list "startOptions"
               (Seq.fromList
                [ (DeckSelect, "Study a Deck")
                , (DecksOverview False, "Decks")
-               , (CardsOverview, "Cards")
+               , (CardsOverview False, "Cards")
                , (Credits, "About")
                ])
               1
@@ -254,14 +302,15 @@ lifecycle = do
           [ editTextField id "userEntry" (Just 1) ]
           mempty
 
-        cardForm' = newForm -- TODO: pad?
+        cardForm' = newForm
           [ (padRight (Pad 1) (str "Obverse:") <+>)
             @@= editTextField obverse "cardObverse" (Just 1)
           , (padRight (Pad 1) (str "Reverse:") <+>)
-            @@= editTextField Model.reverse "cardReverse" (Just 1)
-          -- , checkboxField enabled "cardEnabled" "Enabled"
+            @@= editTextField reverse "cardReverse" (Just 1)
+          , (padRight (Pad 4) (str "Tags:") <+>)
+            @@= editTextField tags "cardTagList" Nothing
           ]
-          (Card "" "" True)
+          (NewCard "" "" "")
 
         deckForm' = newForm
           [ (padRight (Pad 8) (str "Name:") <+>)
@@ -272,10 +321,23 @@ lifecycle = do
           (Deck "" "")
 
         newDeckMetadata de = DeckMetadata
-          { _deckEntity = de
-          , _cardCount = 0
-          , _lastStudied = Nothing
+          { deckMetadataDeckEntity = de
+          , deckMetadataCardCount = 0
+          , deckMetadataLastStudied = Nothing
           }
+
+        deleteDeckConfirm st = case st ^. view of
+          DecksOverview deleting -> do
+            guard deleting
+            Entity _ deck <- st ^. activeDeck
+            return $ vCenter
+              $ borderWithLabel (str "Delete Deck")
+              $ vBox
+              [ hCenter $ strWrap
+                ([i|To confirm deletion, write '#{deck ^. name}' in the box below and press ENTER. This cannot be undone. To cancel, press ESC.|])
+              , hCenter $ border $ renderForm $ st ^. answerForm
+              ]
+          _ -> Nothing
 
         copyrightNotice = vBox
           $ hCenter <$>
