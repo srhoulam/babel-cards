@@ -1,4 +1,7 @@
-{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE NoImplicitPrelude      #-}
+{-# LANGUAGE TemplateHaskell        #-}
 module Types.TUI where
 
 import           Brick.BChan            (BChan)
@@ -7,30 +10,33 @@ import           Brick.Widgets.List     (GenericList)
 import           Data.Sequence          (Seq)
 import           Data.Text              (Text)
 import           Database.Persist.Types (Entity)
+import           Lens.Micro.TH
 import           Model
 import           RIO
 import           Types
 
 data BabelTUI = BabelTUI
-  { btBabel          :: !Babel
-  , btView           :: !BabelView
-  , btChan           :: !(BChan BabelEvent)
+  { _babel          :: !Babel
+  , _view           :: !BabelView
+  , _chan           :: !(BChan BabelEvent)
 
-  , btActiveCard     :: !(Maybe (Entity Card))
-  , btActiveDeck     :: !(Maybe (Entity Deck))
+  , _activeCard     :: !(Maybe (Entity Card))
+  , _activeDeck     :: !(Maybe (Entity Deck))
 
-  , btAnswerForm     :: !(Form Text BabelEvent String)
-  , btCardForm       :: !(Form Card BabelEvent String)
-  , btDeckForm       :: !(Form Deck BabelEvent String)
+  , _answerForm     :: !(Form Text BabelEvent String)
+  , _cardForm       :: !(Form Card BabelEvent String)
+  , _deckForm       :: !(Form Deck BabelEvent String)
 
-  --, btAvailableCards
-  , btAvailableDecks :: !(GenericList String Seq DeckMetadata)
-  , btAvailableModes :: !(GenericList String Seq BabelMode)
-  , btStartOptions   :: !(GenericList String Seq (BabelView, String))
+  --, _availableCards
+  , _availableDecks :: !(GenericList String Seq DeckMetadata)
+  , _availableModes :: !(GenericList String Seq BabelMode)
+  , _startOptions   :: !(GenericList String Seq (BabelView, String))
   }
+
 
 data BabelEvent =
   CreateDeck Deck
+  | DeleteDeck DeckId
 
 -- TODO: Care will have to
 -- be taken in designing this type, as it will be
@@ -52,6 +58,9 @@ data BabelView =
 
   | AddNewDeck
   | DecksOverview
+    Bool -- ^ Deleting the active deck?
   | DeckManagement
 
   | Credits
+
+makeLenses ''BabelTUI

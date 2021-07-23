@@ -57,6 +57,8 @@ library:
   - esqueleto
   - file-embed
   - filepath
+  - interpolate
+  - microlens
   - microlens-th
   - monad-logger
   - persistent

@@ -1,33 +1,39 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE RecordWildCards   #-}
 module Application.TUI where
 
 import           Application.Database
 import           Brick
 import           Brick.BChan
-import           Brick.Forms                (checkboxField, editTextField, (@@=),
-                                             formState, handleFormEvent,
-                                             newForm, renderForm)
+import           Brick.Forms                      (checkboxField, editTextField, 
+                                                   formState, handleFormEvent,
+                                                   newForm, renderForm, (@@=))
 import           Brick.Main
-import           Brick.Widgets.Border       (border, borderWithLabel, hBorder,
-                                             hBorderWithLabel)
-import           Brick.Widgets.Border.Style (unicode)
-import           Brick.Widgets.Center       (hCenter, vCenter)
-import           Brick.Widgets.Dialog       (dialog)
-import           Brick.Widgets.Edit         (Editor, editor, handleEditorEvent,
-                                             renderEditor)
+import           Brick.Widgets.Border             (border, borderWithLabel,
+                                                   hBorder, hBorderWithLabel)
+import           Brick.Widgets.Border.Style       (unicode)
+import           Brick.Widgets.Center             (hCenter, vCenter)
+import           Brick.Widgets.Dialog             (dialog)
+import           Brick.Widgets.Edit               (Editor, editor,
+                                                   handleEditorEvent,
+                                                   renderEditor)
 import           Brick.Widgets.List
                                             -- listSelectedElement, renderList)
-import qualified Data.Sequence              as Seq (fromList, singleton)
-import qualified Data.Text                  as Text (unpack)
-import qualified Graphics.Vty               (defaultConfig, mkVty)
+import qualified Data.Sequence                    as Seq (filter, fromList,
+                                                          singleton, (|>))
+import           Data.String.Interpolate.IsString
+import qualified Data.Text                        as Text (unpack)
+import qualified Graphics.Vty                     (defaultConfig, mkVty)
 import           Graphics.Vty.Attributes
 import           Graphics.Vty.Input.Events
+import           Lens.Micro
 import           Model
-import           RIO
-import           RIO.List                   (headMaybe)
+import           RIO                              hiding (view)
+import           RIO.List                         (headMaybe)
 import           RIO.Time
+import Text.Printf
 import           Types
 import           Types.TUI
 
@@ -47,87 +53,117 @@ lifecycle = do
           , (listSelectedAttr, withStyle currentAttr bold)
           , (listSelectedFocusedAttr, withStyle currentAttr $ bold + standout)
           ]
-        appStartEvent st@BabelTUI {..} = do
-          availDecks <- runRIO btBabel $ runDB $ retrieveDeckSummaries
-          -- TODO: load modes, when lua scripting is implemented
-          return st
-            { btAvailableDecks =
-                list "availableDecks" (Seq.fromList availDecks) 1
-            , btAvailableModes =
-                list "availableModes" (Seq.singleton Standard) 1
-            }
-
         appChooseCursor = showFirstCursor
+        appStartEvent st = do
+          availDecks <- runRIO (st ^. babel) $ runDB $ retrieveDeckSummaries
+          -- TODO: load modes, when lua scripting is implemented
+          return
+            $ st
+            & availableDecks .~ list "availableDecks" (Seq.fromList availDecks) 1
+            & availableModes .~ list "availableModes" (Seq.singleton Standard) 1
 
-        appHandleEvent st@BabelTUI {..} evt = do
+        appHandleEvent st evt = do
           case evt of
             AppEvent appEvent -> case appEvent of
-              CreateDeck deck -> error "create deck"
-                -- TODO: insert deck into db!
-                -- TODO: add new deck to available decks
-            _ -> return ()
+              CreateDeck deck -> do
+                deckId <- liftIO $ runRIO (st ^. babel) $ runDB $ insert deck
+                continue $ st
+                  & availableDecks . listElementsL
+                  %~ (Seq.|> newDeckMetadata (Entity deckId deck))
+              DeleteDeck deckId -> do
+                liftIO $ runRIO (st ^. babel) $ runDB $ delete deckId
+                continue $ st
+                  & availableDecks . listElementsL
+                  %~ Seq.filter ((deckId /=) . (^. deckEntity . key))
 
-          case btView of
-            Start -> case evt of
-              VtyEvent event -> do
-                updatedList <- handleListEvent event btStartOptions
-                let newState = st { btStartOptions = updatedList }
+            VtyEvent event -> case st ^. view of
+              Start -> do
+                updatedList <- handleListEvent event $ st ^. startOptions
+                let newState = st & startOptions .~ updatedList
                 case event of
                   EvKey (KChar 'q') [] -> halt newState
-                  EvKey KEnter [] -> continue newState
-                    { btView = maybe btView (fst . snd)
-                      $ listSelectedElement updatedList
-                    }
+                  EvKey KEnter [] -> continue $ newState
+                    & view
+                    .~ maybe (st ^. view) (fst . snd) (listSelectedElement updatedList)
                   _ -> continue newState
-              _ -> continue st
 
-            DeckSelect -> case evt of
-              _ -> continue st
+              DeckSelect -> continue st
+              ModeSelect -> continue st
 
-            ModeSelect -> case evt of
-              _ -> continue st
-
-            AddNewDeck -> do
-              updatedForm <- handleFormEvent evt btDeckForm
-              case evt of
-                VtyEvent event -> do
-                  let newState = st { btDeckForm = updatedForm }
-                  case event of
-                    EvKey KEsc [] -> continue newState
-                      { btView = DecksOverview }
-                    EvKey (KChar 'd') [MCtrl] -> do
-                      liftIO $ writeBChan btChan $ CreateDeck $ formState updatedForm
-                      continue newState { btView = DeckManagement }
-                    _ -> continue newState
-                _ -> continue st
-
-            DecksOverview -> case evt of
-              VtyEvent event -> do
-                updatedList <- handleListEvent event btAvailableDecks
-                let newState = st { btAvailableDecks = updatedList }
+              AddNewDeck -> do
+                updatedForm <- handleFormEvent evt $ st ^. deckForm
+                let newState = st & deckForm .~ updatedForm
                 case event of
-                  EvKey KEsc [] -> continue newState
-                    { btView = Start
-                    }
-                  EvKey KEnter [] -> continue newState
-                    { btView = DeckManagement
-                    , btActiveDeck = dmDeckEntity . snd <$> listSelectedElement updatedList
-                    }
-                  EvKey (KChar 'a') [] -> continue newState
-                    { btView = AddNewDeck
-                    }
+                  EvKey KEsc [] ->
+                    continue $ newState & view .~ DecksOverview False
+                  EvKey (KChar 'd') [MCtrl] -> do
+                    liftIO $ writeBChan (st ^. chan) $ CreateDeck $ formState updatedForm
+                    continue $ newState & view .~ DecksOverview False
                   _ -> continue newState
-              _ -> continue st
 
-        appDraw BabelTUI {..} = catMaybes
-          [ Just $ case btView of
+              DecksOverview True -> do
+                updatedForm <- handleFormEvent evt $ st ^. answerForm
+
+                let newState = st & answerForm .~ updatedForm
+                    userInput = formState updatedForm
+
+                case event of
+                  EvKey KEsc [] -> continue $ newState & view .~ DecksOverview False
+                  EvKey KEnter [] -> do
+                    let mayDeckName = st ^? activeDeck . _Just . val . name
+                        mayDeckId = st ^? activeDeck . _Just . key
+
+                    case (Just userInput == mayDeckName, mayDeckId) of
+                      (True, Just deckId) -> do
+                        liftIO $ writeBChan (st ^. chan)
+                          $ DeleteDeck deckId
+                        continue $ newState
+                          & activeDeck .~ Nothing
+                          & view .~ DecksOverview False
+                      _ -> continue newState
+                  _ -> continue newState
+
+              DecksOverview False -> do
+                updatedList <- handleListEvent event $ st ^. availableDecks
+                let newState = st & availableDecks .~ updatedList
+                    selectedDeck = _deckEntity . snd <$> listSelectedElement updatedList
+                case event of
+                  EvKey KEsc [] -> continue $ newState & view .~ Start
+                  EvKey KEnter [] -> continue $ newState
+                    & view .~ DeckManagement
+                    & activeDeck .~ selectedDeck
+
+                  EvKey (KChar 'a') [] -> continue $ newState
+                    & view .~ AddNewDeck
+                    & deckForm .~ deckForm'
+                  EvKey KDel [] -> continue $ newState
+                    & activeDeck .~ selectedDeck
+                    & view .~ DecksOverview True
+                    & answerForm .~ answerForm'
+                  _ -> continue newState
+            _ -> continue st
+
+        appDraw st = catMaybes
+          [ case st ^. view of
+              DecksOverview deleting -> do
+                guard deleting
+                Entity _ deck <- st ^. activeDeck
+                return $ vCenter
+                  $ borderWithLabel (str "Delete Deck")
+                  $ vBox
+                  [ hCenter $ strWrap [i|To confirm deletion, write '#{deck ^. name}' in the box below and press ENTER. This cannot be undone. To cancel, press ESC.|]
+                  , hCenter $ border $ renderForm $ st ^. answerForm
+                  ]
+              _ -> Nothing
+
+          , Just $ case st ^. view of
               Start -> applicationTitle
                 $ vBox
                 [ hCenter $ strWrap "A flash-cards memorization tool."
                 , hBorder
                 , vCenter
                   $ vBox
-                  [ renderList renderStartOption True btStartOptions
+                  [ renderList renderStartOption True $ st ^. startOptions
                   , hCenter (strWrap "Press ENTER to make a selection.")
                   , hCenter (strWrap "Press Q to quit.")
                   ]
@@ -151,19 +187,20 @@ lifecycle = do
               AddNewDeck -> applicationTitle
                 $ vBox
                 [ hBorderWithLabel (str "Add New Deck")
-                , vCenter $ renderForm btDeckForm
+                , vCenter $ renderForm $ st ^. deckForm
                 , hCenter $ strWrap "Press TAB to proceed to the next field."
                 , hCenter $ strWrap "Press Shift+TAB to return to a previous field."
                 , hCenter $ strWrap "Press Ctrl+D when finished."
                 ]
-              DecksOverview -> applicationTitle
+              DecksOverview _ -> applicationTitle
                 $ vBox
                 [ hBorderWithLabel (str "Decks")
                 , vCenter
                   $ vBox
-                  [ renderList renderDeckMenuOption True btAvailableDecks
+                  [ hCenter $ renderList renderDeckMenuOption True $ st ^. availableDecks
                   , hCenter (strWrap "Press ENTER to make a selection.")
                   , hCenter (strWrap "Press A to add a new deck.")
+                  , hCenter (strWrap "Press DEL to delete the selected deck.")
                   , hCenter (strWrap "Press ESC to return.")
                   ]
                 ]
@@ -177,14 +214,12 @@ lifecycle = do
               Credits -> error "Credits"
           ]
 
-        renderDeckMenuOption _ DeckMetadata {..} =
-          let Entity _ deck = dmDeckEntity
-          in hBox
-             [ str (Text.unpack $ deckName deck)
-             , str $ show dmCardCount
-             , str $ maybe "Never" (formatTime defaultTimeLocale "%_Y-%m-%d %T") dmLastStudied
-             ]
-             <=> strWrap (Text.unpack $ deckDescription deck)
+        renderDeckMenuOption _ dm = hBox
+          [ padRight Max $ str $ Text.unpack $ dm ^. deckEntity . val . name
+          , str $ printf "%7d" $ dm ^. cardCount
+          , padLeft Max $ str $ maybe "Never" (formatTime defaultTimeLocale "%_Y-%m-%d %T") $ dm ^. lastStudied
+          ]
+          <=> strWrap (Text.unpack $ dm ^. deckEntity . val . description)
 
         renderStartOption _ (_, label) =
           hCenter $ strWrap label
@@ -192,49 +227,55 @@ lifecycle = do
         applicationTitle = borderWithLabel (str "BabelCards")
 
         initialState env chan = BabelTUI
-          { btBabel = env
-          , btView = Start
-          , btChan = chan
+          { _babel = env
+          , _view = Start
+          , _chan = chan
 
-          , btActiveCard = Nothing
-          , btActiveDeck = Nothing
+          , _activeCard = Nothing
+          , _activeDeck = Nothing
 
-          , btAnswerForm = answerForm
-          , btCardForm = cardForm
-          , btDeckForm = deckForm
+          , _answerForm = answerForm'
+          , _cardForm = cardForm'
+          , _deckForm = deckForm'
 
-          , btAvailableDecks = list "availableDecks" mempty 1
-          , btAvailableModes = list "availableModes" mempty 1
-          , btStartOptions = list "startOptions"
+          , _availableDecks = list "availableDecks" mempty 1
+          , _availableModes = list "availableModes" mempty 1
+          , _startOptions = list "startOptions"
               (Seq.fromList
                [ (DeckSelect, "Study a Deck")
-               , (DecksOverview, "Decks")
+               , (DecksOverview False, "Decks")
                , (CardsOverview, "Cards")
                , (Credits, "About")
                ])
               1
           }
 
-        answerForm = newForm
+        answerForm' = newForm
           [ editTextField id "userEntry" (Just 1) ]
           mempty
 
-        cardForm = newForm
-          [ (str "Obverse: " <+>)
+        cardForm' = newForm -- TODO: pad?
+          [ (padRight (Pad 1) (str "Obverse:") <+>)
             @@= editTextField obverse "cardObverse" (Just 1)
-          , (str "Reverse: " <+>)
+          , (padRight (Pad 1) (str "Reverse:") <+>)
             @@= editTextField Model.reverse "cardReverse" (Just 1)
           -- , checkboxField enabled "cardEnabled" "Enabled"
           ]
           (Card "" "" True)
 
-        deckForm = newForm
-          [ (str "Name:        " <+>)
+        deckForm' = newForm
+          [ (padRight (Pad 8) (str "Name:") <+>)
             @@= editTextField name "deckName" (Just 1)
-          , (str "Description: " <+>)
+          , (padRight (Pad 1) (str "Description:") <+>)
             @@= editTextField description "deckDescription" Nothing
           ]
           (Deck "" "")
+
+        newDeckMetadata de = DeckMetadata
+          { _deckEntity = de
+          , _cardCount = 0
+          , _lastStudied = Nothing
+          }
 
         copyrightNotice = vBox
           $ hCenter <$>

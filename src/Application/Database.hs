@@ -7,6 +7,7 @@ import qualified Database.Esqueleto        as E
 import           Database.Persist          as Application.Database
 -- import           Database.Persist.Class as Application.Database
 import           Database.Persist.Sql      (SqlBackend, runSqlPool)
+-- import Lens.Micro
 import           Model                     as Application.Database
 import           RIO
 import           RIO.List                  (headMaybe)
@@ -80,7 +81,7 @@ retrieveDeckSummaries = do
            )
 
   return $ mkDeckMetadata <$> summaries
-  where mkDeckMetadata (dmDeckEntity, E.Value dmLastStudied, E.Value dmCardCount) =
+  where mkDeckMetadata (_deckEntity, E.Value _lastStudied, E.Value _cardCount) =
           DeckMetadata {..}
 
 retrieveNextCard :: DeckId -> BabelQuery (Maybe (Entity Card))

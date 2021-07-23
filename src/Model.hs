@@ -5,7 +5,6 @@
 {-# LANGUAGE FunctionalDependencies     #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE NoImplicitPrelude          #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE QuasiQuotes                #-}
@@ -36,7 +35,10 @@ makeLensesWith camelCaseFields ''Card
 makeLensesWith camelCaseFields ''Deck
 
 data DeckMetadata = DeckMetadata
-  { dmDeckEntity  :: !(Entity Deck)
-  , dmCardCount   :: !Int
-  , dmLastStudied :: !(Maybe UTCTime)
+  { _deckEntity  :: !(Entity Deck)
+  , _cardCount   :: !Int
+  , _lastStudied :: !(Maybe UTCTime)
   }
+
+makeLenses ''DeckMetadata
+makeLensesWith camelCaseFields ''Entity

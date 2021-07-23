@@ -1,6 +1,6 @@
 module Import.Main (module Import.Main) where
 
-import           Control.Monad.Logger    (runStderrLoggingT)
+import           Control.Monad.Logger    (runNoLoggingT)
 import           Database.Persist.Sql    (ConnectionPool)
 import           Database.Persist.Sqlite (SqliteConf (..), createSqlitePool,
                                           createSqlitePoolFromInfo,
@@ -17,7 +17,7 @@ import           Util.String             (mapText)
 createConnPool :: BabelEmbeddedSettings -> IO ConnectionPool
 createConnPool settings = do
   dataDir <- ensureDataDirExists settings
-  runStderrLoggingT $ case besDatabase settings of
+  runNoLoggingT $ case besDatabase settings of
     SqliteConf connStr poolSize ->
       createSqlitePool (mapText (dataDir </>) connStr) poolSize
     SqliteConfInfo confInfo poolSize -> createSqlitePoolFromInfo
