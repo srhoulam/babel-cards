@@ -68,6 +68,19 @@ data BabelEvent =
   | CreateDeck Deck
   | DeleteDeck DeckId
 
+  | SetCursorBounds
+    (Maybe Int)
+    -- ^ Minimum _focusX
+    (Maybe Int)
+    -- ^ Maximum _focusX
+    (Maybe Int)
+    -- ^ Minimum _focusY
+    (Maybe Int)
+    -- ^ Maximum _focusY
+  | ReloadCards
+  | ReloadTags
+  -- | ReloadEverything
+
 -- TODO: Care will have to
 -- be taken in designing this type, as it will be
 -- necessary later to make it user-definable via
@@ -84,6 +97,7 @@ data BabelView =
 
   | AddNewCard
   | CardsOverview
+  | CardsOverviewDisabled
   | CardManagement
 
   | AddNewDeck
