@@ -7,41 +7,65 @@ module Types.TUI where
 import           Brick.BChan            (BChan)
 import           Brick.Forms            (Form)
 import           Brick.Widgets.List     (GenericList)
-import           Data.IntMap.Strict        (IntMap)
+import           Data.IntMap.Strict     (IntMap)
 import           Data.Sequence          (Seq)
 import           Data.Text              (Text)
 import           Database.Persist.Types (Entity)
 import           Lens.Micro.TH
 import           Model
-import           RIO hiding (view)
+import           RIO                    hiding (view)
 import           Types
 
 data BabelTUI = BabelTUI
-  { _babel          :: !Babel
-  , _view           :: !BabelView
-  , _chan           :: !(BChan BabelEvent)
+  { _babel           :: !Babel
+  , _view            :: !BabelView
+  , _chan            :: !(BChan BabelEvent)
 
-  , _activeCard     :: !(Maybe (Entity Card))
-  , _activeDeck     :: !(Maybe (Entity Deck))
+  , _focusX          :: !Int
+  -- ^ Left-to-right focus.
+  -- Each view will set and interpret this as it will.
+  -- Setting min/max bounds during view transitions is
+  -- advised.
+  , _focusY          :: !Int
+  -- ^ Top-to-bottom focus.
+  -- Each view will set and interpret this as it will.
+  -- Setting min/max bounds during view transitions is
+  -- advised.
 
-  , _cardMap        :: !(IntMap (Entity Card))
-  , _deckMap        :: !(IntMap DeckMetadata)
-  , _tagMap         :: !(IntMap (Entity Tag))
+  , _activeCard      :: !(Maybe (Entity Card))
 
-  , _answerForm     :: !(Form Text BabelEvent String)
-  , _cardForm       :: !(Form NewCard BabelEvent String)
-  , _deckForm       :: !(Form Deck BabelEvent String)
+  , _cardMap         :: !(IntMap (Entity Card))
+  , _deckMap         :: !(IntMap DeckMetadata)
+  , _tagMap          :: !(IntMap (Entity Tag))
 
-  , _availableCards :: !(GenericList String Seq CardId)
-  , _availableDecks :: !(GenericList String Seq DeckId)
-  , _availableModes :: !(GenericList String Seq BabelMode)
-  , _availableTags :: !(GenericList String Seq TagId)
-  , _startOptions   :: !(GenericList String Seq (BabelView, String))
+  , _answerForm      :: !(Form Text BabelEvent String)
+  , _cardForm        :: !(Form NewCard BabelEvent String)
+  , _deckForm        :: !(Form Deck BabelEvent String)
+
+  -- Display lists
+  , _activeCardDecks :: !(GenericList String Seq DeckId)
+  , _activeCardTags  :: !(GenericList String Seq TagId)
+
+  -- Interactive lists
+  , _availableCards  :: !(GenericList String Seq CardId)
+  , _availableDecks  :: !(GenericList String Seq DeckId)
+  , _availableModes  :: !(GenericList String Seq BabelMode)
+  , _availableTags   :: !(GenericList String Seq TagId)
+  , _startOptions    :: !(GenericList String Seq (BabelView, String))
   }
 
 
 data BabelEvent =
-  CreateDeck Deck
+  AssignCardDeck DeckId CardId
+  | UnassignCardDeck DeckId CardId
+  | AssignCardTag TagId CardId
+  | UnassignCardTag TagId CardId
+  | CreateCard NewCard
+  | DisableCard CardId
+  | EnableCard CardId
+  | LoadCard CardId
+
+  | CreateDeck Deck
   | DeleteDeck DeckId
 
 -- TODO: Care will have to
@@ -60,14 +84,14 @@ data BabelView =
 
   | AddNewCard
   | CardsOverview
-    Bool -- ^ Deleting the active card?
   | CardManagement
 
   | AddNewDeck
   | DecksOverview
-    Bool -- ^ Deleting the active deck?
   | DeckManagement
+  | DeleteDeckConfirm
 
+  | AddNewTag
   | Credits
 
 data NewCard = NewCard

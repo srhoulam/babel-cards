@@ -87,6 +87,25 @@ lifecycle = do
         appHandleEvent st evt = do
           case evt of
             AppEvent appEvent -> case appEvent of
+              AssignCardDeck   deckId cardId -> error "assign card deck"
+              UnassignCardDeck deckId cardId -> error "unassign card deck"
+              AssignCardTag    tagId  cardId -> error "assign card tag"
+              UnassignCardTag  tagId  cardId -> error "unassign card tag"
+
+              CreateCard NewCard {..} -> do
+                -- refresh availableCards from db
+                -- differentially update cardMap
+                error "create card"
+              DisableCard cardId -> error "disable card"
+              EnableCard cardId -> error "enable card"
+              LoadCard cardId -> error "load card"
+                -- TODO NOW MARK FIXME
+                -- SKETCH
+                -- - load the currently selected card's (from availCards)
+                --   associated decks and tags
+                -- - assign the decks to activeCardDecks
+                -- - assign the tags to activeCardTags
+
               CreateDeck deck -> do
                 deckId <- liftIO $ runRIO (st ^. babel) $ runDB $ insert deck
                 continue $ st
@@ -114,64 +133,122 @@ lifecycle = do
               DeckSelect -> continue st
               ModeSelect -> continue st
 
+              AddNewCard -> error "add card"
+              CardsOverview -> do
+                -- SKETCH:
+                -- - card relations to tags and decks are loaded once
+                --   they become the selected card in the list; this
+                --   i/o will be mitigated by layers of caches
+                --   (libsqlite, os disk cache, etc.)
+                updatedAvailCards <- handleListEvent event $ st ^. availableCards
+                updatedAvailDecks <- handleListEvent event $ st ^. availableDecks
+                updatedAvailTags <- handleListEvent event $ st ^. availableTags
+
+                let newState = st
+                      & availableCards .~ updatedAvailCards
+                      & availableDecks .~ updatedAvailDecks
+                      & availableTags .~ updatedAvailTags
+                    selectedCardId = fromJust $ snd
+                      <$> listSelectedElement (st ^. availableCards)
+                    selectedDeckId = fromJust $ snd
+                      <$> listSelectedElement (st ^. availableDecks)
+                    selectedTagId = fromJust $ snd
+                      <$> listSelectedElement (st ^. availableTags)
+                    activeCardHasChanged =
+                      st ^? activeCard . _Just . key
+                      /= Just selectedCardId
+
+                when activeCardHasChanged
+                  $ liftIO $ writeBChan (st ^. chan)
+                  $ LoadCard selectedCardId
+
+                case event of
+                  EvKey KEsc [] -> continue $ newState & view .~ Start
+                  EvKey KIns [] -> do
+                    liftIO $ writeBChan (st ^. chan)
+                      $ EnableCard selectedCardId
+                    continue newState
+                  EvKey KDel [] -> do
+                    liftIO $ writeBChan (st ^. chan)
+                      $ DisableCard selectedCardId
+                    continue newState
+                  EvKey (KChar 'd') [MCtrl] -> do
+                    liftIO $ writeBChan (st ^. chan)
+                      $ AssignCardDeck selectedDeckId selectedCardId
+                    continue newState
+                  EvKey (KChar 'd') [MCtrl, MShift] -> do
+                    liftIO $ writeBChan (st ^. chan)
+                      $ UnassignCardDeck selectedDeckId selectedCardId
+                    continue newState
+                  EvKey (KChar 't') [MCtrl] -> do
+                    liftIO $ writeBChan (st ^. chan)
+                      $ AssignCardTag selectedTagId selectedCardId
+                    continue newState
+                  EvKey (KChar 't') [MCtrl, MShift] -> do
+                    -- TODO: unassign card from tag
+                    liftIO $ writeBChan (st ^. chan)
+                      $ UnassignCardTag selectedTagId selectedCardId
+                    continue newState
+                  _ -> continue newState
+
               AddNewDeck -> do
                 updatedForm <- handleFormEvent evt $ st ^. deckForm
                 let newState = st & deckForm .~ updatedForm
                 case event of
                   EvKey KEsc [] ->
-                    continue $ newState & view .~ DecksOverview False
+                    continue $ newState & view .~ DecksOverview
                   EvKey (KChar 'd') [MCtrl] -> do
                     liftIO $ writeBChan (st ^. chan) $ CreateDeck $ formState updatedForm
-                    continue $ newState & view .~ DecksOverview False
+                    continue $ newState & view .~ DecksOverview
                   _ -> continue newState
 
-              DecksOverview True -> do
-                updatedForm <- handleFormEvent evt $ st ^. answerForm
-
-                let newState = st & answerForm .~ updatedForm
-                    userInput = formState updatedForm
-
-                case event of
-                  EvKey KEsc [] -> continue $ newState & view .~ DecksOverview False
-                  EvKey KEnter [] -> do
-                    let mayDeckName = st ^? activeDeck . _Just . val . name
-                        mayDeckId = st ^? activeDeck . _Just . key
-
-                    case (Just userInput == mayDeckName, mayDeckId) of
-                      (True, Just deckId) -> do
-                        liftIO $ writeBChan (st ^. chan)
-                          $ DeleteDeck deckId
-                        continue $ newState
-                          & activeDeck .~ Nothing
-                          & view .~ DecksOverview False
-                      _ -> continue newState
-                  _ -> continue newState
-
-              DecksOverview False -> do
+              DecksOverview -> do
                 updatedList <- handleListEvent event $ st ^. availableDecks
                 let newState = st & availableDecks .~ updatedList
-                    selectedDeckId = fromJust $ keyToInt . snd <$> listSelectedElement updatedList
-                    selectedDeck = fromJust $ st ^. deckMap . at selectedDeckId
 
                 case event of
                   EvKey KEsc [] -> continue $ newState & view .~ Start
                   EvKey KEnter [] -> continue $ newState
                     & view .~ DeckManagement
-                    & activeDeck .~ selectedDeck ^? deckEntity
 
                   EvKey (KChar 'a') [] -> continue $ newState
                     & view .~ AddNewDeck
                     & deckForm .~ deckForm'
                   EvKey KDel [] -> continue $ newState
-                    & activeDeck .~ selectedDeck ^? deckEntity
-                    & view .~ DecksOverview True
+                    & view .~ DeleteDeckConfirm
                     & answerForm .~ answerForm'
                   _ -> continue newState
+
+              DeckManagement -> do
+                error "deck management"
+
+              DeleteDeckConfirm -> do
+                updatedForm <- handleFormEvent evt $ st ^. answerForm
+
+                let newState = st & answerForm .~ updatedForm
+                    userInput = formState updatedForm
+                    selectedDeckId = fromJust $ snd
+                      <$> listSelectedElement (st ^. availableDecks)
+                    selectedDeck = st ^?! deckMap . at (keyToInt selectedDeckId) . _Just
+                    selectedDeckName = selectedDeck ^. deckEntity . val . name
+                    userInputMatchesName = Just userInput == Just selectedDeckName
+
+                case event of
+                  EvKey KEsc [] -> continue $ newState & view .~ DecksOverview
+                  EvKey KEnter [] -> do
+                    case (userInputMatchesName, selectedDeckId) of
+                      (True, deckId) -> do
+                        liftIO $ writeBChan (st ^. chan)
+                          $ DeleteDeck deckId
+                        continue $ newState
+                          & view .~ DecksOverview
+                      _ -> continue newState
+                  _ -> continue newState
+
             _ -> continue st
 
         appDraw st = catMaybes
-          [ deleteDeckConfirm st
-          , Just $ case st ^. view of
+          [ Just $ case st ^. view of
               Start -> applicationTitle
                 $ vBox
                 [ hCenter $ strWrap "A flash-cards memorization tool."
@@ -201,18 +278,50 @@ lifecycle = do
                 , hCenter $ strWrap "Press Ctrl+D when finished."
                 ]
 
-              CardsOverview _ -> -- TODO NOW
-                -- SKETCH:
-                -- - a list of tags to apply to the active card
-                -- - a list of decks to assign the active card to
-                -- - one can then assign the active card to the selected
-                --   deck or to the selected tag while scrolling through
-                --   the card list
-                -- - card relations to tags and decks are loaded once
-                --   they become the selected card in the list; this
-                --   i/o will be mitigated by layers of caches
-                --   (libsqlite, os disk cache, etc.)
-                error "CardsOverview"
+              CardsOverview -> applicationTitle
+                $ vBox
+                [ hBorderWithLabel (str "Cards")
+                , hBox
+                  [ vBox
+                    [ borderWithLabel (str "All Decks")
+                      $ renderList
+                      (renderDeckOption $ st ^. deckMap)
+                      (st ^. focusX == 0)
+                      $ st ^. availableDecks
+                    , borderWithLabel (str "Card Decks")
+                      $ renderList
+                      (renderDeckOption $ st ^. deckMap)
+                      (st ^. focusX == 0)
+                      $ st ^. activeCardDecks
+                    ]
+                  , vBox
+                    [ borderWithLabel (str "All Tags")
+                      $ renderList
+                      (renderTagOption  $ st ^. tagMap)
+                      (st ^. focusX == 1)
+                      $ st ^. availableTags
+                    , borderWithLabel (str "Card Tags")
+                      $ renderList
+                      (renderTagOption  $ st ^. tagMap)
+                      (st ^. focusX == 1)
+                      $ st ^. activeCardTags
+                    ]
+                  , borderWithLabel (str "Cards")
+                    $ renderList
+                    (renderCardOption $ st ^. cardMap)
+                    (st ^. focusX == 2)
+                    $ st ^. availableCards
+                  ]
+                , hCenter $ strWrap "Switch lists with left/right keys."
+                , hCenter $ strWrap "Select list options with up/down keys."
+                , hCenter $ strWrap "Press Ctrl+T to assign the selected tag to a card."
+                , hCenter $ strWrap "Press Ctrl+D to assign the selected deck to a card."
+                , hCenter $ strWrap "Press Ctrl+Shift+T to unassign the selected tag from a card."
+                , hCenter $ strWrap "Press Ctrl+Shift+D to unassign the selected deck from a card."
+                , hCenter $ strWrap "Press INS to enable the selected card."
+                , hCenter $ strWrap "Press DEL to disable the selected card."
+                ]
+
               CardManagement ->
                 error "CardManagement"
 
@@ -224,13 +333,13 @@ lifecycle = do
                 , hCenter $ strWrap "Press Shift+TAB to return to a previous field."
                 , hCenter $ strWrap "Press Ctrl+D when finished."
                 ]
-              DecksOverview _ -> applicationTitle
+              DecksOverview -> applicationTitle
                 $ vBox
                 [ hBorderWithLabel (str "Decks")
                 , vCenter
                   $ vBox
                   [ hCenter
-                    $ renderList (renderDeckMenuOption $ st ^. deckMap) True
+                    $ renderList (renderDeckOverviewOption $ st ^. deckMap) True
                     $ st ^. availableDecks
                   , hCenter (strWrap "Press ENTER to make a selection.")
                   , hCenter (strWrap "Press A to add a new deck.")
@@ -238,21 +347,58 @@ lifecycle = do
                   , hCenter (strWrap "Press ESC to return.")
                   ]
                 ]
-              DeckManagement -> applicationTitle
-                $ vBox
-                [ hBorderWithLabel (str $ Text.unpack $ st ^?! activeDeck . _Just . val . name)
-                -- TODO: list cards in this deck
-                -- TODO: enable removing cards from deck
-                ]
-                -- error "DeckManagement"
-                -- TODO: deck form for editing the active deck's
-                --       name and desc
+              DeckManagement ->
+                let selectedDeckId = fromJust $ snd
+                      <$> listSelectedElement (st ^. availableDecks)
+                    selectedDeck = st ^?! deckMap . at (keyToInt selectedDeckId) . _Just
+                    selectedDeckName = selectedDeck ^. deckEntity . val . name
+                in applicationTitle
+                   $ vBox
+                   [ hBorderWithLabel (str $ Text.unpack selectedDeckName)
+                   -- TODO: list cards in this deck
+                   -- TODO: enable removing cards from deck
+                   -- TODO: deck form for editing the active deck's
+                   --       name and desc
+                   ]
+              DeleteDeckConfirm ->
+                let selectedDeckId = fromJust $ snd
+                      <$> listSelectedElement (st ^. availableDecks)
+                    selectedDeck = st ^?! deckMap . at (keyToInt selectedDeckId) . _Just
+                    selectedDeckName = selectedDeck ^. deckEntity . val . name
+                in applicationTitle
+                   $ vCenter
+                   $ borderWithLabel (str "Delete Deck")
+                   $ vBox
+                   [ hCenter $ strWrap
+                     ([i|To confirm deletion, write '#{selectedDeckName}' in the box below and press ENTER. This cannot be undone. To cancel, press ESC.|])
+                   , hCenter $ border $ renderForm $ st ^. answerForm
+                   ]
 
+              AddNewTag -> error "add new tag"
               Credits -> error "Credits"
           ]
 
-        renderDeckMenuOption :: IntMap DeckMetadata -> Bool -> DeckId -> Widget a
-        renderDeckMenuOption dmap _ deckId = hBox
+        renderCardOption :: IntMap (Entity Card) -> Bool -> CardId -> Widget a
+        renderCardOption cmap _ cardId =
+          let cardObverse = card ^. obverse
+              cardReverse = card ^. reverse
+              card = cmap ^?! at (keyToInt cardId) . _Just . val
+              cardLabel = ([i|#{cardObverse} / #{cardReverse}|])
+          in padRight Max
+             $ str cardLabel
+
+        renderDeckOption :: IntMap DeckMetadata -> Bool -> DeckId -> Widget a
+        renderDeckOption dmap _ deckId = padRight Max
+          $ str $ Text.unpack
+          $ dmap ^?! at (keyToInt deckId) . _Just . deckEntity . val . name
+
+        renderTagOption :: IntMap (Entity Tag) -> Bool -> TagId -> Widget a
+        renderTagOption tmap _ tagId = padRight Max
+          $ str $ Text.unpack
+          $ tmap ^?! at (keyToInt tagId) . _Just . val . name
+
+        renderDeckOverviewOption :: IntMap DeckMetadata -> Bool -> DeckId -> Widget a
+        renderDeckOverviewOption dmap _ deckId = hBox
           [ padRight Max $ str $ Text.unpack
             $ dmap ^?! at (keyToInt deckId) . _Just . deckEntity . val . name
           , str $ printf "%7d"
@@ -273,8 +419,10 @@ lifecycle = do
           , _view = Start
           , _chan = chan
 
+          , _focusX = 0
+          , _focusY = 0
+
           , _activeCard = Nothing
-          , _activeDeck = Nothing
 
           , _cardMap = mempty
           , _deckMap = mempty
@@ -284,6 +432,9 @@ lifecycle = do
           , _cardForm = cardForm'
           , _deckForm = deckForm'
 
+          , _activeCardDecks = list "activeCardDecks" mempty 1
+          , _activeCardTags = list "activeCardTags" mempty 1
+
           , _availableCards = list "availableCards" mempty 1
           , _availableDecks = list "availableDecks" mempty 1
           , _availableModes = list "availableModes" mempty 1
@@ -291,8 +442,8 @@ lifecycle = do
           , _startOptions = list "startOptions"
               (Seq.fromList
                [ (DeckSelect, "Study a Deck")
-               , (DecksOverview False, "Decks")
-               , (CardsOverview False, "Cards")
+               , (DecksOverview, "Decks")
+               , (CardsOverview, "Cards")
                , (Credits, "About")
                ])
               1
@@ -325,19 +476,6 @@ lifecycle = do
           , deckMetadataCardCount = 0
           , deckMetadataLastStudied = Nothing
           }
-
-        deleteDeckConfirm st = case st ^. view of
-          DecksOverview deleting -> do
-            guard deleting
-            Entity _ deck <- st ^. activeDeck
-            return $ vCenter
-              $ borderWithLabel (str "Delete Deck")
-              $ vBox
-              [ hCenter $ strWrap
-                ([i|To confirm deletion, write '#{deck ^. name}' in the box below and press ENTER. This cannot be undone. To cancel, press ESC.|])
-              , hCenter $ border $ renderForm $ st ^. answerForm
-              ]
-          _ -> Nothing
 
         copyrightNotice = vBox
           $ hCenter <$>

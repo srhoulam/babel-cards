@@ -76,7 +76,10 @@ retrieveCards =
     E.groupBy $ card E.^. CardId
     let numDecks = E.countDistinct $ dm E.^. DeckMemberId :: E.SqlExpr (E.Value Int)
         numTags  = E.countDistinct $ tm E.^. TagMemberId  :: E.SqlExpr (E.Value Int)
-    E.orderBy [ E.asc numDecks, E.asc numTags ]
+    E.orderBy [ E.asc numDecks
+              , E.asc numTags
+              , E.desc $ card E.^. CardEnabled
+              ]
     return card
 
 retrieveDeckSummaries :: BabelQuery [DeckMetadata]
@@ -130,7 +133,7 @@ retrieveOrCreateTag tagName' = do
     Nothing             -> insert $ Tag tagName'
 
 retrieveTags :: BabelQuery [Entity Tag]
-retrieveTags = selectList [] []
+retrieveTags = selectList [] [ Asc TagName ]
 
 updateCardEase :: DeckId -> CardId -> ReviewEase -> BabelQuery ()
 updateCardEase deckId cardId ReviewAgain = updateWhere

@@ -36,6 +36,7 @@ share [mkPersist sqlSettings, mkMigrate "migrateAll"]
 makeFields ''Entity
 makeFields ''Card
 makeFields ''Deck
+makeFields ''Tag
 
 data CardMetadata = CardMetadata
   { cardMetadataCardEntity :: !(Entity Card)
