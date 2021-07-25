@@ -468,10 +468,12 @@ lifecycle = do
 
         applicationTitle = borderWithLabel (str "BabelCards")
 
-        initialState env chan = BabelTUI
+        initialState env chan' = BabelTUI
           { _babel = env
           , _view = Start
-          , _chan = chan
+          , _chan = chan'
+
+          , _gameState = emptyGameState
 
           , _focusX = 0
           , _focusY = 0
@@ -630,5 +632,5 @@ lifecycle = do
           [ strWrap "BabelCards v0.1.0"
           , strWrap "Copyright (c) 2021 Saad Rhoulam"
           , strWrap "BabelCards comes with ABSOLUTELY NO WARRANTY."
-          , strWrap "BabelCards is distributed under the GPLv2 license."
+          , strWrap "BabelCards is distributed under the GPLv3 license."
           ]

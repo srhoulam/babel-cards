@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 67a9b8a3198a938c7654f25bb2ac3b6ad78c844dff1761868d71835300caa941
+-- hash: 0727c975b952d266f0677343fcbc6185f3aedea1a5bb4aa3f7467833f2da9d29
 
 name:           babel-cards
 version:        0.1.0
@@ -19,7 +19,7 @@ bug-reports:    https://github.com/srhoulam/babel-cards/issues
 author:         Saad Rhoulam
 maintainer:     saad@rhoulam.com
 copyright:      Copyright 2021 Saad Rhoulam, all rights reserved.
-license:        GPL-2
+license:        GPL-3
 build-type:     Simple
 extra-source-files:
     ChangeLog.md
