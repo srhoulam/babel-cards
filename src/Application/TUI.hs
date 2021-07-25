@@ -90,52 +90,19 @@ lifecycle = do
                 runRIO (st ^. babel) $ runDB $ update cardId' [ CardEnabled =. True ]
                 loadCards st >>= loadTags >>= continue
 
-              -- LoadCard cardId' -> loadCardMd st cardId' >>= continue
-
               CreateDeck deck -> do
-                deckId' <- runRIO (st ^. babel) $ runDB $ insert deck
-                continue $ st
-                  & deckMap %~ IntMap.insert (keyToInt deckId') (newDeckMetadata $ Entity deckId' deck)
-                  & availableDecks . listElementsL
-                  %~ (Seq.|> deckId')
+                _ <- runRIO (st ^. babel) $ runDB $ insert deck
+                loadDecks st >>= continue
 
               DeleteDeck deckId' -> do
                 runRIO (st ^. babel) $ runDB $ do
+                  deleteWhere [ QueueItemDeckId ==. deckId']
                   deleteWhere [ DeckMemberDeckId ==. deckId' ]
                   delete deckId'
-                continue $ st
-                  & deckMap %~ IntMap.delete (keyToInt deckId')
-                  & availableDecks . listElementsL
-                  %~ Seq.filter (deckId' /=)
-
-              ReloadCards -> loadCards st >>= continue
-              ReloadTags -> loadTags st >>= continue
-              -- ReloadEverything -> appStartEvent st >>= continue
+                loadDecks st >>= continue
 
             VtyEvent event -> case st ^. view of
-              Start -> do
-                updatedList <- handleListEvent event $ st ^. startOptions
-                let newState = st & startOptions .~ updatedList
-                case event of
-                  EvKey (KChar 'q') [] -> halt newState
-                  EvKey KEnter [] -> continue $ newState
-                    & view
-                    .~ maybe (st ^. view) (fst . snd) (listSelectedElement updatedList)
-                  _ -> continue newState
-
-              DeckSelect -> continue st
-              ModeSelect -> continue st
-
-              AddNewCard -> do
-                updatedForm <- handleFormEvent evt $ st ^. cardForm
-                let newState = st & cardForm .~ updatedForm
-                case event of
-                  EvKey KEsc [] ->
-                    continue $ newState & view .~ CardsOverview
-                  EvKey (KChar 'd') [MCtrl] -> do
-                    liftIO $ writeBChan (st ^. chan) $ CreateCard $ formState updatedForm
-                    continue $ newState & view .~ CardsOverview
-                  _ -> continue newState
+              Playing -> error "playing"
 
               CardsOverview -> do
                 st1 <- setCursorBounds st (Just 0) (Just 2) Nothing Nothing
@@ -228,17 +195,6 @@ lifecycle = do
                     continue newState
                   _ -> continue newState
 
-              AddNewDeck -> do
-                updatedForm <- handleFormEvent evt $ st ^. deckForm
-                let newState = st & deckForm .~ updatedForm
-                case event of
-                  EvKey KEsc [] ->
-                    continue $ newState & view .~ DecksOverview
-                  EvKey (KChar 'd') [MCtrl] -> do
-                    liftIO $ writeBChan (st ^. chan) $ CreateDeck $ formState updatedForm
-                    continue $ newState & view .~ DecksOverview
-                  _ -> continue newState
-
               DecksOverview -> do
                 updatedList <- handleListEvent event $ st ^. availableDecks
                 let newState = st & availableDecks .~ updatedList
@@ -257,6 +213,30 @@ lifecycle = do
 
               DeckManagement -> do
                 error "deck management"
+
+              AddNewCard -> do
+                updatedForm <- handleFormEvent evt $ st ^. cardForm
+                let newState = st & cardForm .~ updatedForm
+                case event of
+                  EvKey KEsc [] ->
+                    continue $ newState & view .~ CardsOverview
+                  EvKey (KChar 'd') [MCtrl] -> do
+                    liftIO $ writeBChan (st ^. chan) $ CreateCard $ formState updatedForm
+                    continue $ newState & view .~ CardsOverview
+                  _ -> continue newState
+
+              AddNewTag -> error "add new tag"
+
+              AddNewDeck -> do
+                updatedForm <- handleFormEvent evt $ st ^. deckForm
+                let newState = st & deckForm .~ updatedForm
+                case event of
+                  EvKey KEsc [] ->
+                    continue $ newState & view .~ DecksOverview
+                  EvKey (KChar 'd') [MCtrl] -> do
+                    liftIO $ writeBChan (st ^. chan) $ CreateDeck $ formState updatedForm
+                    continue $ newState & view .~ DecksOverview
+                  _ -> continue newState
 
               DeleteDeckConfirm -> do
                 updatedForm <- handleFormEvent evt $ st ^. answerForm
@@ -281,38 +261,30 @@ lifecycle = do
                       _ -> continue newState
                   _ -> continue newState
 
+              Start -> do
+                updatedList <- handleListEvent event $ st ^. startOptions
+                let newState = st & startOptions .~ updatedList
+                case event of
+                  EvKey (KChar 'q') [] -> halt newState
+                  EvKey KEnter [] -> continue $ newState
+                    & view
+                    .~ maybe (st ^. view) (fst . snd) (listSelectedElement updatedList)
+                  _ -> continue newState
+
+              DeckSelect -> continue st
+
+              ModeSelect -> continue st
+
+              Credits -> case event of
+                EvKey KEsc [] -> continue $ st & view .~ Start
+                _ -> continue st
+
             _ -> continue st
 
         appDraw st = catMaybes
           [ Just $ case st ^. view of
-              Start -> applicationTitle
-                $ vBox
-                [ hCenter $ strWrap "A flash-cards memorization tool."
-                , hBorder
-                , vCenter
-                  $ vBox
-                  [ renderList renderStartOption True $ st ^. startOptions
-                  , hCenter (strWrap "Press ENTER to make a selection.")
-                  , hCenter (strWrap "Press Q to quit.")
-                  ]
-                , hBorder
-                , copyrightNotice
-                ]
-              DeckSelect ->
-                error "deck select"
-              ModeSelect ->
-                error "mode select"
               Playing ->
                 error "playing"
-
-              AddNewCard -> applicationTitle
-                $ vBox
-                [ hBorderWithLabel (str "Add New Card")
-                , vCenter $ renderForm $ st ^. cardForm
-                , hCenter $ strWrap "Press TAB to proceed to the next field."
-                , hCenter $ strWrap "Press Shift+TAB to return to a previous field."
-                , hCenter $ strWrap "Press Ctrl+D when finished."
-                ]
 
               CardsOverview -> applicationTitle
                 $ vBox
@@ -374,17 +346,6 @@ lifecycle = do
                 , hCenter $ strWrap "Press ESC to return."
                 ]
 
-              CardManagement ->
-                error "CardManagement"
-
-              AddNewDeck -> applicationTitle
-                $ vBox
-                [ hBorderWithLabel (str "Add New Deck")
-                , vCenter $ renderForm $ st ^. deckForm
-                , hCenter $ strWrap "Press TAB to proceed to the next field."
-                , hCenter $ strWrap "Press Shift+TAB to return to a previous field."
-                , hCenter $ strWrap "Press Ctrl+D when finished."
-                ]
               DecksOverview -> applicationTitle
                 $ vBox
                 [ hBorderWithLabel (str "Decks")
@@ -399,6 +360,7 @@ lifecycle = do
                   , hCenter (strWrap "Press ESC to return.")
                   ]
                 ]
+
               DeckManagement ->
                 let selectedDeckId = fromJust $ snd
                       <$> listSelectedElement (st ^. availableDecks)
@@ -412,6 +374,27 @@ lifecycle = do
                    -- TODO: deck form for editing the active deck's
                    --       name and desc
                    ]
+
+              AddNewCard -> applicationTitle
+                $ vBox
+                [ hBorderWithLabel (str "Add New Card")
+                , vCenter $ renderForm $ st ^. cardForm
+                , hCenter $ strWrap "Press TAB to proceed to the next field."
+                , hCenter $ strWrap "Press Shift+TAB to return to a previous field."
+                , hCenter $ strWrap "Press Ctrl+D when finished."
+                ]
+
+              AddNewTag -> error "add new tag"
+
+              AddNewDeck -> applicationTitle
+                $ vBox
+                [ hBorderWithLabel (str "Add New Deck")
+                , vCenter $ renderForm $ st ^. deckForm
+                , hCenter $ strWrap "Press TAB to proceed to the next field."
+                , hCenter $ strWrap "Press Shift+TAB to return to a previous field."
+                , hCenter $ strWrap "Press Ctrl+D when finished."
+                ]
+
               DeleteDeckConfirm ->
                 let selectedDeckId = fromJust $ snd
                       <$> listSelectedElement (st ^. availableDecks)
@@ -426,8 +409,27 @@ lifecycle = do
                    , hCenter $ border $ renderForm $ st ^. answerForm
                    ]
 
-              AddNewTag -> error "add new tag"
-              Credits -> error "Credits"
+              Start -> applicationTitle
+                $ vBox
+                [ hCenter $ strWrap "A flash-cards memorization tool."
+                , hBorder
+                , vCenter
+                  $ vBox
+                  [ renderList renderStartOption True $ st ^. startOptions
+                  , hCenter (strWrap "Press ENTER to make a selection.")
+                  , hCenter (strWrap "Press Q to quit.")
+                  ]
+                , hBorder
+                , copyrightNotice
+                ]
+
+              DeckSelect ->
+                error "deck select"
+
+              ModeSelect ->
+                error "mode select"
+
+              Credits -> error "Credits" -- TODO
           ]
 
         renderCardOption :: IntMap (Entity Card) -> Bool -> CardId -> Widget a
@@ -473,8 +475,6 @@ lifecycle = do
 
           , _focusX = 0
           , _focusY = 0
-
-          , _activeCard = Nothing
 
           , _cardMapEnabled = mempty
           , _cardMapDisabled = mempty

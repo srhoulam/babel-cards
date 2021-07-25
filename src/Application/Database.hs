@@ -128,6 +128,7 @@ retrieveCardsDisabled =
     E.where_ $ E.not_ $ card E.^. CardEnabled
     E.orderBy [ E.asc numDecks
               , E.asc numTags
+              , E.asc $ card E.^. CardObverse
               ]
     return card
 
@@ -143,6 +144,7 @@ retrieveCardsEnabled =
     E.where_ $ card E.^. CardEnabled
     E.orderBy [ E.asc numDecks
               , E.asc numTags
+              , E.asc $ card E.^. CardObverse
               ]
     return card
 

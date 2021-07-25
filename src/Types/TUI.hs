@@ -8,6 +8,7 @@ import           Brick.BChan            (BChan)
 import           Brick.Forms            (Form)
 import           Brick.Widgets.List     (GenericList)
 import           Data.IntMap.Strict     (IntMap)
+import           Data.Map.Strict        (Map)
 import           Data.Sequence          (Seq)
 import           Data.Text              (Text)
 import           Database.Persist.Types (Entity)
@@ -21,6 +22,8 @@ data BabelTUI = BabelTUI
   , _view                   :: !BabelView
   , _chan                   :: !(BChan BabelEvent)
 
+  , _gameState              :: !GameState
+
   , _focusX                 :: !Int
   -- ^ Left-to-right focus.
   -- Each view will set and interpret this as it will.
@@ -31,8 +34,6 @@ data BabelTUI = BabelTUI
   -- Each view will set and interpret this as it will.
   -- Setting min/max bounds during view transitions is
   -- advised.
-
-  , _activeCard             :: !(Maybe (Entity Card))
 
   , _cardMapEnabled         :: !(IntMap (Entity Card))
   , _cardMapDisabled        :: !(IntMap (Entity Card))
@@ -65,31 +66,38 @@ data BabelEvent =
   | CreateCard NewCard
   | DisableCard CardId
   | EnableCard CardId
-  | LoadCard CardId
 
   | CreateDeck Deck
   | DeleteDeck DeckId
-
-  | SetCursorBounds
-    (Maybe Int)
-    -- ^ Minimum _focusX
-    (Maybe Int)
-    -- ^ Maximum _focusX
-    (Maybe Int)
-    -- ^ Minimum _focusY
-    (Maybe Int)
-    -- ^ Maximum _focusY
-  | ReloadCards
-  | ReloadTags
-  -- | ReloadEverything
 
 -- TODO: Care will have to
 -- be taken in designing this type, as it will be
 -- necessary later to make it user-definable via
 -- Lua scripting.
+-- IDEA: a state machine architecture:
+--       - specify how to create the initial state
+--         - inevitably, get a number of cards from
+--           the scheduler!
+--       - specify a state transition function
+--         - e.g., if cards match according to metric,
+--           they are removed from the board
+--       - specify how to determine an end state
+--         - e.g., all cards exhausted
+--       - use a stack for user input
+--         - stack type: string or card id or tag id
+--         - thus we can create games with a variety
+--           of equivalence metrics
+--           - e.g., memory game where you match cards
+--             by common tag; the tag may indicate part
+--             of speech, tense, mood, etc.
+--       - everything takes place within a free monad
+--         representing babel fundamental operations
 data BabelMode =
   Standard
-  -- | UserDefined <FreeMonadChain>
+  -- ^ Basic flash cards game.
+  -- Will be superseded by type that can be defined via
+  -- the scripting interface. This basic mode will be
+  -- shipped as an example script.
 
 data BabelView =
   Start
@@ -100,7 +108,6 @@ data BabelView =
   | AddNewCard
   | CardsOverview
   | CardsOverviewDisabled
-  | CardManagement
 
   | AddNewDeck
   | DecksOverview
@@ -109,6 +116,19 @@ data BabelView =
 
   | AddNewTag
   | Credits
+
+-- | TODO
+data GameState = GameState
+  { gameStateCards :: ![Maybe CardId]
+    -- ^ Cards in play. A @Nothing@ indicates an empty
+    -- slot for purposes where many cards are shown at
+    -- once.
+  , gameStateScore :: !Int
+    -- ^ Fun! :D
+  , gameStateDict  :: !(Map Text Text)
+    -- ^ A dictionary for more complex scripts to store
+    -- and retrieve data.
+  }
 
 data NewCard = NewCard
   { newCardObverse :: Text
@@ -119,4 +139,11 @@ data NewCard = NewCard
 makeFields ''NewCard
 makeFields ''CardMetadata
 makeFields ''DeckMetadata
+makeFields ''GameState
 makeLenses ''BabelTUI
+
+emptyGameState = GameState
+  { gameStateCards = mempty
+  , gameStateScore = 0
+  , gameStateDict  = mempty
+  }
