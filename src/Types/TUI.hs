@@ -17,41 +17,43 @@ import           RIO                    hiding (view)
 import           Types
 
 data BabelTUI = BabelTUI
-  { _babel           :: !Babel
-  , _view            :: !BabelView
-  , _chan            :: !(BChan BabelEvent)
+  { _babel                  :: !Babel
+  , _view                   :: !BabelView
+  , _chan                   :: !(BChan BabelEvent)
 
-  , _focusX          :: !Int
+  , _focusX                 :: !Int
   -- ^ Left-to-right focus.
   -- Each view will set and interpret this as it will.
   -- Setting min/max bounds during view transitions is
   -- advised.
-  , _focusY          :: !Int
+  , _focusY                 :: !Int
   -- ^ Top-to-bottom focus.
   -- Each view will set and interpret this as it will.
   -- Setting min/max bounds during view transitions is
   -- advised.
 
-  , _activeCard      :: !(Maybe (Entity Card))
+  , _activeCard             :: !(Maybe (Entity Card))
 
-  , _cardMap         :: !(IntMap (Entity Card))
-  , _deckMap         :: !(IntMap DeckMetadata)
-  , _tagMap          :: !(IntMap (Entity Tag))
+  , _cardMapEnabled         :: !(IntMap (Entity Card))
+  , _cardMapDisabled        :: !(IntMap (Entity Card))
+  , _deckMap                :: !(IntMap DeckMetadata)
+  , _tagMap                 :: !(IntMap (Entity Tag))
 
-  , _answerForm      :: !(Form Text BabelEvent String)
-  , _cardForm        :: !(Form NewCard BabelEvent String)
-  , _deckForm        :: !(Form Deck BabelEvent String)
+  , _answerForm             :: !(Form Text BabelEvent String)
+  , _cardForm               :: !(Form NewCard BabelEvent String)
+  , _deckForm               :: !(Form Deck BabelEvent String)
 
   -- Display lists
-  , _activeCardDecks :: !(GenericList String Seq DeckId)
-  , _activeCardTags  :: !(GenericList String Seq TagId)
+  , _activeCardDecks        :: !(GenericList String Seq DeckId)
+  , _activeCardTags         :: !(GenericList String Seq TagId)
 
   -- Interactive lists
-  , _availableCards  :: !(GenericList String Seq CardId)
-  , _availableDecks  :: !(GenericList String Seq DeckId)
-  , _availableModes  :: !(GenericList String Seq BabelMode)
-  , _availableTags   :: !(GenericList String Seq TagId)
-  , _startOptions    :: !(GenericList String Seq (BabelView, String))
+  , _availableCardsEnabled  :: !(GenericList String Seq CardId)
+  , _availableCardsDisabled :: !(GenericList String Seq CardId)
+  , _availableDecks         :: !(GenericList String Seq DeckId)
+  , _availableModes         :: !(GenericList String Seq BabelMode)
+  , _availableTags          :: !(GenericList String Seq TagId)
+  , _startOptions           :: !(GenericList String Seq (BabelView, String))
   }
 
 

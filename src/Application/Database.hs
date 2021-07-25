@@ -36,6 +36,14 @@ assignCardDeck deckId' cardId' = do
 
   return ()
 
+assignCardTag :: TagId -> CardId -> BabelQuery ()
+assignCardTag tagId' cardId' = do
+  _ <- runMaybeT
+    $ void (MaybeT $ getBy $ UniqueTagCard tagId' cardId')
+    <|> lift (insert_ $ TagMember tagId' cardId')
+
+  return ()
+
 unassignCardDeck :: DeckId -> CardId -> BabelQuery ()
 unassignCardDeck deckId' cardId' = do
   for_ [minBound..maxBound] $ \qi -> runMaybeT $ do
@@ -43,6 +51,13 @@ unassignCardDeck deckId' cardId' = do
     lift $ delete qiid
   _ <- runMaybeT $ do
     Entity dmid _ <- MaybeT $ getBy $ UniqueDeckCard deckId' cardId'
+    lift $ delete dmid
+  return ()
+
+unassignCardTag :: TagId -> CardId -> BabelQuery ()
+unassignCardTag tagId' cardId' = do
+  _ <- runMaybeT $ do
+    Entity dmid _ <- MaybeT $ getBy $ UniqueTagCard tagId' cardId'
     lift $ delete dmid
   return ()
 
@@ -101,8 +116,23 @@ retrieveCardTags :: CardId -> BabelQuery [TagId]
 retrieveCardTags cardId' = fmap (^. val . tagId)
   <$> selectList [ TagMemberCardId ==. cardId' ] [ Asc TagMemberTagId ]
 
-retrieveCards :: BabelQuery [Entity Card]
-retrieveCards =
+retrieveCardsDisabled :: BabelQuery [Entity Card]
+retrieveCardsDisabled =
+  E.select $ E.from $ \(card `E.LeftOuterJoin` tm `E.LeftOuterJoin` dm) -> do
+    E.on $ card E.^. CardId           E.==. dm   E.^. DeckMemberCardId
+    E.on $ card E.^. CardId           E.==. tm   E.^. TagMemberCardId
+
+    E.groupBy $ card E.^. CardId
+    let numDecks = E.countDistinct $ dm E.^. DeckMemberId :: E.SqlExpr (E.Value Int)
+        numTags  = E.countDistinct $ tm E.^. TagMemberId  :: E.SqlExpr (E.Value Int)
+    E.where_ $ E.not_ $ card E.^. CardEnabled
+    E.orderBy [ E.asc numDecks
+              , E.asc numTags
+              ]
+    return card
+
+retrieveCardsEnabled :: BabelQuery [Entity Card]
+retrieveCardsEnabled =
   E.select $ E.from $ \(card `E.LeftOuterJoin` tm `E.LeftOuterJoin` dm) -> do
     E.on $ card E.^. CardId           E.==. dm   E.^. DeckMemberCardId
     E.on $ card E.^. CardId           E.==. tm   E.^. TagMemberCardId
@@ -113,7 +143,6 @@ retrieveCards =
     E.where_ $ card E.^. CardEnabled
     E.orderBy [ E.asc numDecks
               , E.asc numTags
-              -- , E.desc $ card E.^. CardEnabled
               ]
     return card
 
