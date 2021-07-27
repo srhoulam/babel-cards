@@ -5,7 +5,7 @@ module Types where
 
 import           Data.Aeson              (Options (..), defaultOptions)
 import           Data.Aeson.TH
-import           Database.Persist.Sql    (ConnectionPool)
+import           Database.Persist.Sql    (ConnectionPool, SqlBackend)
 import           Database.Persist.Sqlite (SqliteConf)
 import           GHC.Generics
 import           RIO
@@ -13,6 +13,8 @@ import           RIO.Process
 import           RIO.Time                (NominalDiffTime)
 import           System.Random.TF
 import           Util.String             (decapitalize)
+
+type BabelQuery a = ReaderT SqlBackend (ReaderT Babel IO) a
 
 -- | Command line arguments
 data CmdLineOptions = CmdLineOptions

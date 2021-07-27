@@ -473,7 +473,7 @@ lifecycle = do
           , _view = Start
           , _chan = chan'
 
-          , _gameState = emptyGameState
+          , _gameState = Nothing
 
           , _focusX = 0
           , _focusY = 0
@@ -593,8 +593,9 @@ lifecycle = do
             & deckMap .~ dmap
             & availableDecks .~ list "availableDecks" (Seq.fromList deckIds) 1
 
-        loadModes = return
-          -- TODO: load modes, when lua scripting is implemented
+        -- TODO: load modes from files, when lua scripting is implemented
+        loadModes st = return $ st
+          & availableModes .~ list "availableModes" (Seq.singleton Standard) 1
 
         loadTags st = do
           availTags <- runRIO (st ^. babel) $ runDB retrieveTags

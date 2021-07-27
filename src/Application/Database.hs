@@ -6,8 +6,8 @@ import           Control.Monad.Trans.Maybe
 import qualified Data.Text                 as Text (lines)
 import qualified Database.Esqueleto        as E
 import           Database.Persist          as Application.Database
-import           Database.Persist.Sql      (SqlBackend, runSqlPool)
-import Lens.Micro.Platform
+import           Database.Persist.Sql      (runSqlPool)
+import           Lens.Micro.Platform
 import           Model                     as Application.Database
 import           RIO
 import           RIO.List                  (headMaybe, sort, (\\))
@@ -16,8 +16,6 @@ import           RIO.Time                  (NominalDiffTime, UTCTime,
 import           Types
 import           Types.Review
 import           Types.TUI
-
-type BabelQuery a = ReaderT SqlBackend (ReaderT Babel IO) a
 
 runDB :: BabelQuery a -> RIO Babel a
 runDB action = RIO $ do
@@ -95,11 +93,10 @@ logReview :: DeckId
           -> Int
           -> NominalDiffTime
           -> ReviewEase
-          -> Entity QueueItem
+          -> QueueIndex
           -> BabelQuery ()
-logReview deckId' cardId' distance duration ease' (Entity _ qi) = do
+logReview deckId' cardId' distance duration ease' queueIdx = do
   let durationSecs = round duration :: Int
-      queueIdx = queueItemIndex qi
   now <- getCurrentTime
   insert_ $ ReviewLog deckId' cardId' distance durationSecs ease' queueIdx now
 
@@ -165,6 +162,14 @@ retrieveDeckSummaries = do
   where mkDeckMetadata (deckMetadataDeckEntity, E.Value deckMetadataLastStudied, E.Value deckMetadataCardCount) =
           DeckMetadata {..}
 
+retrieveDeckCards :: DeckId -> BabelQuery [Entity Card]
+retrieveDeckCards deckId' =
+  E.select $ E.from $ \(dm `E.InnerJoin` card) -> do
+    E.on $ dm E.^. DeckMemberCardId E.==. card E.^. CardId
+    E.where_ $ dm E.^. DeckMemberDeckId E.==. E.val deckId'
+    E.orderBy [ E.asc $ card E.^. CardId ]
+    return card
+
 retrieveNextCard :: DeckId -> BabelQuery (Maybe (Entity Card))
 retrieveNextCard deckId' = do
   now <- getCurrentTime
@@ -179,7 +184,7 @@ retrieveNextCardFromQueue :: QueueIndex
                           -> DeckId
                           -> BabelQuery (Maybe (Entity Card))
 retrieveNextCardFromQueue queueIndex now deckId' = do
-  cards <- E.select $ E.from $ \(card `E.InnerJoin` qi) -> do
+  cards' <- E.select $ E.from $ \(card `E.InnerJoin` qi) -> do
     E.on $ card E.^. CardId E.==. qi E.^. QueueItemCardId
     E.where_ $ card E.^. CardEnabled
       E.&&. qi E.^. QueueItemDeckId E.==. E.val deckId'
@@ -189,7 +194,7 @@ retrieveNextCardFromQueue queueIndex now deckId' = do
     E.limit 1
     return card
 
-  return $ headMaybe cards
+  return $ headMaybe cards'
 
 retrieveOrCreateTag :: Text -> BabelQuery TagId
 retrieveOrCreateTag tagName' = do

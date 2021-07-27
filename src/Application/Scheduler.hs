@@ -11,29 +11,33 @@ import           Types.Review
 
 rescheduleCard :: DeckId
                -> CardId
-               -> Entity QueueItem
+               -> QueueIndex
                -> Bool
                -- ^ Correct answer?
                -> ReviewEase
                -> BabelQuery ()
-rescheduleCard deckId cardId (Entity qiid qi) True reviewEase = do
-  case (queueItemIndex qi, reviewEase) of
+rescheduleCard deckId' cardId' qidx True reviewEase = do
+  Entity qiid qi <- fromMaybe
+    (error "rescheduleCard: QueueItem doesn't exist??")
+    <$> getBy (UniqueQueueCard deckId' qidx cardId')
+
+  case (qidx, reviewEase) of
     -- NOTE: ease doesn't go down on new/learning cards
-    (NewQueue, ReviewEasy)      -> updateCardEase deckId cardId reviewEase
+    (NewQueue, ReviewEasy)      -> updateCardEase deckId' cardId' reviewEase
     (NewQueue, _)               -> return ()
-    (LearningQueue, ReviewEasy) -> updateCardEase deckId cardId reviewEase
+    (LearningQueue, ReviewEasy) -> updateCardEase deckId' cardId' reviewEase
     (LearningQueue, _)          -> return ()
-    (ReviewQueue, _)            -> updateCardEase deckId cardId reviewEase
+    (ReviewQueue, _)            -> updateCardEase deckId' cardId' reviewEase
 
   newEase <- fromMaybe
     (error "rescheduleCard: DeckMember doesn't exist??")
-    <$> retrieveCardEase deckId cardId
+    <$> retrieveCardEase deckId' cardId'
   env <- lift ask
   fuzzFactor <- runRIO env generateFuzz
   now <- getCurrentTime
 
   let newQueueIndex =
-        case (queueItemIndex qi, newEase < 1.0, newEase >= 2.0) of
+        case (qidx, newEase < 1.0, newEase >= 2.0) of
           (NewQueue, _, _)          -> LearningQueue
           (LearningQueue, _, False) -> LearningQueue
           (LearningQueue, _, True)  -> ReviewQueue
@@ -52,19 +56,23 @@ rescheduleCard deckId cardId (Entity qiid qi) True reviewEase = do
       newDueDate = addUTCTime newInterval now
 
   delete qiid
-  enqueueCard newQueueIndex newDueDate deckId cardId
+  enqueueCard newQueueIndex newDueDate deckId' cardId'
 
-rescheduleCard deckId cardId (Entity qiid qi) False reviewEase = do
-  case (queueItemIndex qi, reviewEase) of
+rescheduleCard deckId' cardId' qidx False reviewEase = do
+  Entity qiid qi <- fromMaybe
+    (error "rescheduleCard: QueueItem doesn't exist??")
+    <$> getBy (UniqueQueueCard deckId' qidx cardId')
+
+  case (qidx, reviewEase) of
     -- NOTE: ease doesn't go down on new/learning cards
     (NewQueue, _)              -> return ()
     (LearningQueue, _)         -> return ()
-    (ReviewQueue, ReviewAgain) -> updateCardEase deckId cardId reviewEase
-    (ReviewQueue, _)           -> updateCardEase deckId cardId ReviewHard
+    (ReviewQueue, ReviewAgain) -> updateCardEase deckId' cardId' reviewEase
+    (ReviewQueue, _)           -> updateCardEase deckId' cardId' ReviewHard
 
   newEase <- fromMaybe
     (error "rescheduleCard: DeckMember doesn't exist??")
-    <$> retrieveCardEase deckId cardId
+    <$> retrieveCardEase deckId' cardId'
   now <- getCurrentTime
   let newQueueIndex =
         case (queueItemIndex qi, newEase < 1.0, newEase >= 2.0) of
@@ -76,7 +84,7 @@ rescheduleCard deckId cardId (Entity qiid qi) False reviewEase = do
       newDueDate = addUTCTime nominalDay now
 
   delete qiid
-  enqueueCard newQueueIndex newDueDate deckId cardId
+  enqueueCard newQueueIndex newDueDate deckId' cardId'
 
 generateFuzz :: RIO Babel Double
 generateFuzz = do

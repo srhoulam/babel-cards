@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0727c975b952d266f0677343fcbc6185f3aedea1a5bb4aa3f7467833f2da9d29
+-- hash: 0af489f5e6f24ff51ab5a66bfde5f9685a4b2d3824c236b09459758a7a37bb07
 
 name:           babel-cards
 version:        0.1.0
@@ -43,6 +43,7 @@ library
       Model
       Settings
       Types
+      Types.Free
       Types.Review
       Types.TUI
       Util.String

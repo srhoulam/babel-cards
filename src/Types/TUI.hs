@@ -22,7 +22,7 @@ data BabelTUI = BabelTUI
   , _view                   :: !BabelView
   , _chan                   :: !(BChan BabelEvent)
 
-  , _gameState              :: !GameState
+  , _gameState              :: !(Maybe GameState)
 
   , _focusX                 :: !Int
   -- ^ Left-to-right focus.
@@ -70,34 +70,27 @@ data BabelEvent =
   | CreateDeck Deck
   | DeleteDeck DeckId
 
--- TODO: Care will have to
--- be taken in designing this type, as it will be
--- necessary later to make it user-definable via
--- Lua scripting.
--- IDEA: a state machine architecture:
---       - specify how to create the initial state
---         - inevitably, get a number of cards from
---           the scheduler!
---       - specify a state transition function
---         - e.g., if cards match according to metric,
---           they are removed from the board
---       - specify how to determine an end state
---         - e.g., all cards exhausted
---       - use a stack for user input
---         - stack type: string or card id or tag id
---         - thus we can create games with a variety
---           of equivalence metrics
---           - e.g., memory game where you match cards
---             by common tag; the tag may indicate part
---             of speech, tense, mood, etc.
---       - everything takes place within a free monad
---         representing babel fundamental operations
+
+-- TODO: we can't delegate quite as much responsibility to Lua
+--       as we thought.
+--       - init will have to get a few constants: number of cards
+--         to draw, what display mode (once implemented)
+--       - state transition will have to be managed by haskell. Lua
+--         will provide hooks into it, such as how to compare user
+--         input to the card to ascertain correctness
+--       - I don't know how to make many types of game possible! thus
+--         LUA is on hold until this is hammered out through the
+--         built-in modes!
 data BabelMode =
   Standard
-  -- ^ Basic flash cards game.
-  -- Will be superseded by type that can be defined via
-  -- the scripting interface. This basic mode will be
-  -- shipped as an example script.
+  -- NOTE: Lua scripting is on hold until I learn the requirements
+  --       of modes of operation in order to better architect the
+  --       interface
+  -- | BabelMode
+  --   { babelModeInitGame        :: !(Lua ())
+  --   , babelModeStateTransition :: !(Lua ())
+  --   , babelModeDetermineEnd    :: !(Lua Bool)
+  --   }
 
 data BabelView =
   Start
@@ -119,15 +112,19 @@ data BabelView =
 
 -- | TODO
 data GameState = GameState
-  { gameStateCards :: ![Maybe CardId]
+  { gameStateMode           :: !BabelMode
+  , gameStateCards          :: ![Maybe CardId]
     -- ^ Cards in play. A @Nothing@ indicates an empty
     -- slot for purposes where many cards are shown at
     -- once.
-  , gameStateScore :: !Int
+  , gameStateScore          :: !Int
     -- ^ Fun! :D
-  , gameStateDict  :: !(Map Text Text)
+  , gameStateDict           :: !(Map Text Text)
     -- ^ A dictionary for more complex scripts to store
     -- and retrieve data.
+  , gameStateUserInputStack :: !(Seq UserInput)
+    -- ^ User input. This will be consulted to determine
+    -- whether the user answered correctly.
   }
 
 data NewCard = NewCard
@@ -136,14 +133,22 @@ data NewCard = NewCard
   , newCardTags    :: Text
   }
 
+data UserInput =
+  TextInput Text
+  | CardChoice CardId
+  | TagChoice TagId
+
 makeFields ''NewCard
 makeFields ''CardMetadata
 makeFields ''DeckMetadata
 makeFields ''GameState
 makeLenses ''BabelTUI
 
+emptyGameState :: GameState
 emptyGameState = GameState
-  { gameStateCards = mempty
+  { gameStateMode = Standard
+  , gameStateCards = mempty
   , gameStateScore = 0
   , gameStateDict  = mempty
+  , gameStateUserInputStack = mempty
   }
