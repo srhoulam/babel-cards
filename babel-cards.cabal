@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0af489f5e6f24ff51ab5a66bfde5f9685a4b2d3824c236b09459758a7a37bb07
+-- hash: dc8875883bf65467fd84ab3453c79e1d2a9366d09a378edbbcc901de4b640c0e
 
 name:           babel-cards
 version:        0.1.0
@@ -59,6 +59,7 @@ library
     , bytestring
     , containers
     , directory
+    , edit-distance
     , esqueleto
     , file-embed
     , filepath

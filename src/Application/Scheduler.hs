@@ -11,16 +11,16 @@ import           Types.Review
 
 rescheduleCard :: DeckId
                -> CardId
-               -> QueueIndex
                -> Bool
                -- ^ Correct answer?
                -> ReviewEase
                -> BabelQuery ()
-rescheduleCard deckId' cardId' qidx True reviewEase = do
+rescheduleCard deckId' cardId' True reviewEase = do
   Entity qiid qi <- fromMaybe
     (error "rescheduleCard: QueueItem doesn't exist??")
-    <$> getBy (UniqueQueueCard deckId' qidx cardId')
+    <$> getBy (UniqueQueueCard deckId' cardId')
 
+  let qidx = queueItemIndex qi
   case (qidx, reviewEase) of
     -- NOTE: ease doesn't go down on new/learning cards
     (NewQueue, ReviewEasy)      -> updateCardEase deckId' cardId' reviewEase
@@ -58,12 +58,12 @@ rescheduleCard deckId' cardId' qidx True reviewEase = do
   delete qiid
   enqueueCard newQueueIndex newDueDate deckId' cardId'
 
-rescheduleCard deckId' cardId' qidx False reviewEase = do
+rescheduleCard deckId' cardId' False reviewEase = do
   Entity qiid qi <- fromMaybe
     (error "rescheduleCard: QueueItem doesn't exist??")
-    <$> getBy (UniqueQueueCard deckId' qidx cardId')
+    <$> getBy (UniqueQueueCard deckId' cardId')
 
-  case (qidx, reviewEase) of
+  case (queueItemIndex qi, reviewEase) of
     -- NOTE: ease doesn't go down on new/learning cards
     (NewQueue, _)              -> return ()
     (LearningQueue, _)         -> return ()
@@ -73,6 +73,8 @@ rescheduleCard deckId' cardId' qidx False reviewEase = do
   newEase <- fromMaybe
     (error "rescheduleCard: DeckMember doesn't exist??")
     <$> retrieveCardEase deckId' cardId'
+  env <- lift ask
+  fuzzFactor <- runRIO env generateFuzz
   now <- getCurrentTime
   let newQueueIndex =
         case (queueItemIndex qi, newEase < 1.0, newEase >= 2.0) of
@@ -81,7 +83,17 @@ rescheduleCard deckId' cardId' qidx False reviewEase = do
           (LearningQueue, _, True)  -> ReviewQueue
           (ReviewQueue, True, _)    -> LearningQueue
           (ReviewQueue, _, _)       -> ReviewQueue
-      newDueDate = addUTCTime nominalDay now
+      oldInterval = diffUTCTime now (queueItemCreated qi)
+      maxInterval = bcMaxInterval $ bConfig env
+      minInterval = bcMinInterval $ bConfig env
+      newInterval = max minInterval
+        $ min maxInterval
+        $ product
+        [ realToFrac fuzzFactor
+        , realToFrac newEase
+        , oldInterval
+        ]
+      newDueDate = addUTCTime (min newInterval nominalDay) now
 
   delete qiid
   enqueueCard newQueueIndex newDueDate deckId' cardId'

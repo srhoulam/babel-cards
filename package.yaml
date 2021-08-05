@@ -54,6 +54,7 @@ library:
   - bytestring
   - containers
   - directory
+  - edit-distance
   - esqueleto
   - file-embed
   - filepath

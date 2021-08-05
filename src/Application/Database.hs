@@ -44,8 +44,8 @@ assignCardTag tagId' cardId' = do
 
 unassignCardDeck :: DeckId -> CardId -> BabelQuery ()
 unassignCardDeck deckId' cardId' = do
-  for_ [minBound..maxBound] $ \qi -> runMaybeT $ do
-    Entity qiid _ <- MaybeT $ getBy $ UniqueQueueCard deckId' qi cardId'
+  _ <- runMaybeT $ do
+    Entity qiid _ <- MaybeT $ getBy $ UniqueQueueCard deckId' cardId'
     lift $ delete qiid
   _ <- runMaybeT $ do
     Entity dmid _ <- MaybeT $ getBy $ UniqueDeckCard deckId' cardId'
@@ -144,6 +144,13 @@ retrieveCardsEnabled =
               , E.asc $ card E.^. CardObverse
               ]
     return card
+
+retrieveDueCardsCount :: DeckId -> BabelQuery Int
+retrieveDueCardsCount deckId' = do
+  now <- getCurrentTime
+  count [ QueueItemDeckId ==. deckId'
+        , QueueItemDue <. now
+        ]
 
 retrieveDeckSummaries :: BabelQuery [DeckMetadata]
 retrieveDeckSummaries = do

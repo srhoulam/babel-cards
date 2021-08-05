@@ -83,6 +83,7 @@ data BabelEvent =
 --         built-in modes!
 data BabelMode =
   Standard
+  deriving Show
   -- NOTE: Lua scripting is on hold until I learn the requirements
   --       of modes of operation in order to better architect the
   --       interface
@@ -97,6 +98,7 @@ data BabelView =
   | DeckSelect
   | ModeSelect
   | Playing
+  | GameOver
 
   | AddNewCard
   | CardsOverview
@@ -113,7 +115,7 @@ data BabelView =
 -- | TODO
 data GameState = GameState
   { gameStateMode           :: !BabelMode
-  , gameStateCards          :: ![Maybe CardId]
+  , gameStateCards          :: ![Maybe (Entity Card)]
     -- ^ Cards in play. A @Nothing@ indicates an empty
     -- slot for purposes where many cards are shown at
     -- once.
@@ -122,9 +124,10 @@ data GameState = GameState
   , gameStateDict           :: !(Map Text Text)
     -- ^ A dictionary for more complex scripts to store
     -- and retrieve data.
-  , gameStateUserInputStack :: !(Seq UserInput)
+  , gameStateUserInputStack :: ![UserInput]
     -- ^ User input. This will be consulted to determine
     -- whether the user answered correctly.
+  , gameStateMessagesStack :: ![String]
   }
 
 data NewCard = NewCard
@@ -144,11 +147,12 @@ makeFields ''DeckMetadata
 makeFields ''GameState
 makeLenses ''BabelTUI
 
-emptyGameState :: GameState
-emptyGameState = GameState
-  { gameStateMode = Standard
-  , gameStateCards = mempty
-  , gameStateScore = 0
-  , gameStateDict  = mempty
-  , gameStateUserInputStack = mempty
-  }
+-- emptyGameState :: GameState
+-- emptyGameState = GameState
+--   { gameStateMode = Standard
+--   , gameStateCards = mempty
+--   , gameStateScore = 0
+--   , gameStateDict  = mempty
+--   , gameStateUserInputStack = mempty
+--   , gameStateMessagesStack = mempty
+--   }

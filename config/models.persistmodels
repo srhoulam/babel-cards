@@ -32,7 +32,7 @@ QueueItem
   cardId  CardId
   due     UTCTime
   created UTCTime
-  UniqueQueueCard deckId index cardId
+  UniqueQueueCard deckId cardId
 
 -- | This log not only tracks correctness of user answers,
 -- but also *how* incorrectly the user answered via word
