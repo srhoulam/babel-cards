@@ -83,6 +83,7 @@ data BabelEvent =
 --         built-in modes!
 data BabelMode =
   Standard
+  | Reverse
   deriving Show
   -- NOTE: Lua scripting is on hold until I learn the requirements
   --       of modes of operation in order to better architect the

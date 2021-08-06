@@ -31,9 +31,17 @@ ensureDataDirExists settings = do
   createDirectoryIfMissing True dataDir
   return dataDir
 
--- | FIXME: actually load config!
 loadConfig :: IO BabelConfig
-loadConfig = return BabelConfig
-  { bcMaxInterval = 864000 -- 10 days
-  , bcMinInterval = 600 -- 10 minutes
-  }
+loadConfig = do
+  maxIntervalStr <- lookupEnv "BABEL_MAX_INTERVAL"
+  minIntervalStr <- lookupEnv "BABEL_MIN_INTERVAL"
+
+  let maxInterval = maybe 864000 {- 10 days -} fromIntegral
+                    $ maxIntervalStr >>= readMaybe
+      minInterval = maybe 600 {- 10 minutes -} fromIntegral
+                    $ minIntervalStr >>= readMaybe
+
+  return BabelConfig
+    { bcMaxInterval = maxInterval
+    , bcMinInterval = minInterval
+    }

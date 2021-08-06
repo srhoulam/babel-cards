@@ -29,7 +29,7 @@ assignCardDeck deckId' cardId' = do
   _ <- runMaybeT
     $ void (MaybeT $ getBy $ UniqueDeckCard deckId' cardId')
     <|> lift (do
-                 insert_ $ DeckMember deckId' cardId' 0.0
+                 insert_ $ DeckMember deckId' cardId' 1.0
                  enqueueCardNew deckId' cardId')
 
   return ()
