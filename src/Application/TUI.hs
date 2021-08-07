@@ -95,6 +95,10 @@ lifecycle = do
                 delete deckId'
               loadDecks st >>= continue
 
+            CreateTag tag -> do
+              _ <- runRIO (st ^. babel) $ runDB $ insert tag
+              loadTags st >>= continue
+
           VtyEvent event -> case st ^. view of
             Playing -> case st ^?! gameState . _Just . mode of
               Standard -> playStandardGame st evt event
@@ -207,6 +211,13 @@ lifecycle = do
                   & answerForm .~ answerForm'
                 _ -> continue newState
 
+            TagsOverview -> case event of
+              EvKey KEsc [] -> continue $ st & view .~ Start
+              EvKey (KChar 'a') [] -> continue $ st
+                & view .~ AddNewTag
+                & answerForm .~ answerForm'
+              _ -> continue st
+
             DeckManagement -> case event of
               EvKey KEsc [] -> continue $ st & view .~ DecksOverview
               _             -> continue st
@@ -218,11 +229,19 @@ lifecycle = do
                 EvKey KEsc [] ->
                   continue $ newState & view .~ CardsOverview
                 EvKey (KChar 'd') [MCtrl] -> do
-                  liftIO $ writeBChan (st ^. chan) $ CreateCard $ formState updatedForm
+                  liftIO $ writeBChan (newState ^. chan) $ CreateCard $ formState updatedForm
                   continue $ newState & view .~ CardsOverview
                 _ -> continue newState
 
-            AddNewTag -> error "add new tag"
+            AddNewTag -> do
+              updatedForm <- handleFormEvent evt $ st ^. answerForm
+              let newState = st & answerForm .~ updatedForm
+              case event of
+                EvKey KEsc [] -> continue $ newState & view .~ TagsOverview
+                EvKey KEnter [] -> do
+                  liftIO $ writeBChan (newState ^. chan) $ CreateTag $ Tag $ formState updatedForm
+                  continue $ newState & view .~ TagsOverview
+                _ -> continue newState
 
             AddNewDeck -> do
               updatedForm <- handleFormEvent evt $ st ^. deckForm
@@ -231,7 +250,7 @@ lifecycle = do
                 EvKey KEsc [] ->
                   continue $ newState & view .~ DecksOverview
                 EvKey (KChar 'd') [MCtrl] -> do
-                  liftIO $ writeBChan (st ^. chan) $ CreateDeck $ formState updatedForm
+                  liftIO $ writeBChan (newState ^. chan) $ CreateDeck $ formState updatedForm
                   continue $ newState & view .~ DecksOverview
                 _ -> continue newState
 
@@ -356,6 +375,7 @@ lifecycle = do
                 , hCenter $ strWrap "Press A to add a new card."
                 , hCenter $ strWrap "Press T to assign the selected tag to a card."
                 , hCenter $ strWrap "Press D to assign the selected deck to a card."
+                , hCenter $ strWrap "Press Alt+T to create a new tag."
                 , hCenter $ strWrap "Press Ctrl+T to unassign the selected tag from a card."
                 , hCenter $ strWrap "Press Ctrl+D to unassign the selected deck from a card."
                 , hCenter $ strWrap "Press INS to manage disabled cards."
@@ -392,6 +412,21 @@ lifecycle = do
                   ]
                 ]
 
+              TagsOverview -> applicationTitle
+                $ vBox
+                [ hBorderWithLabel (str "Tags")
+                , vCenter
+                  $ vBox
+                  [ hCenter
+                    $ renderList (renderTagOption $ st ^. tagMap) True
+                    $ st ^. availableTags
+                  -- , hCenter (strWrap "Press ENTER to make a selection.")
+                  , hCenter (strWrap "Press A to add a new tag.")
+                  -- , hCenter (strWrap "Press DEL to delete the selected tag.")
+                  , hCenter (strWrap "Press ESC to return.")
+                  ]
+                ]
+
               DeckManagement ->
                 let selectedDeckId = fromJust $ snd
                       <$> listSelectedElement (st ^. availableDecks)
@@ -415,7 +450,12 @@ lifecycle = do
                 , hCenter $ strWrap "Press Ctrl+D when finished."
                 ]
 
-              AddNewTag -> error "add new tag"
+              AddNewTag -> applicationTitle
+                $ vBox
+                [ hBorderWithLabel (str "Add New Tag")
+                , vCenter $ border $ renderForm $ st ^. answerForm
+                , hCenter $ strWrap "Press ENTER when finished."
+                ]
 
               AddNewDeck -> applicationTitle
                 $ vBox
@@ -567,8 +607,9 @@ lifecycle = do
           , _startOptions = list "startOptions"
               (Seq.fromList
                [ (DeckSelect, "Study a Deck")
-               , (DecksOverview, "Decks")
                , (CardsOverview, "Cards")
+               , (DecksOverview, "Decks")
+               , (TagsOverview, "Tags")
                , (Credits, "About")
                ])
               1
@@ -733,6 +774,13 @@ lifecycle = do
               selectedDeckName = selectedDeck ^. deckEntity . val . name
               gameDict = st ^?! gameState . _Just . dict
               currentCard = st ^?! gameState . _Just . cards . each . _Just
+              currentCardTags = toList $ st ^. activeCardTags . listElementsL
+              currentCardTagNames = fmap Text.unpack
+                . catMaybes
+                $ fmap (tagName . entityVal)
+                . (IntMap.!?) (st ^. tagMap)
+                . keyToInt
+                <$> currentCardTags
           in applicationTitle
               $ vBox
               [ hBorderWithLabel (str [i|Studying: #{selectedDeckName}|])
@@ -766,6 +814,8 @@ lifecycle = do
                                 , str "3 - Easy"
                                 ])
 
+                , Just $ hCenter $ hBox
+                  $ border . strWrap <$> currentCardTagNames
                 , Just $ hCenter $ border
                   $ renderForm $ st ^. answerForm
                 ]
@@ -964,7 +1014,9 @@ lifecycle = do
           let timestamp = Text.pack
                 $ formatTime defaultTimeLocale dateTimeFormat now
 
-          continue $ st
+          newState <- maybe (return st) (loadCardMd st . entityKey) nextCard
+
+          continue $ newState
             & gameState . _Just
             %~ ((cards %~ (nextCard:))
                 . (score .~ dueCardsCount))

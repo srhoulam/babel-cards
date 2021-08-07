@@ -70,6 +70,8 @@ data BabelEvent =
   | CreateDeck Deck
   | DeleteDeck DeckId
 
+  | CreateTag Tag
+
 
 -- TODO: we can't delegate quite as much responsibility to Lua
 --       as we thought.
@@ -111,6 +113,7 @@ data BabelView =
   | DeleteDeckConfirm
 
   | AddNewTag
+  | TagsOverview
   | Credits
 
 -- | TODO
