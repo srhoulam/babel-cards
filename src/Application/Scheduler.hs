@@ -49,7 +49,7 @@ rescheduleCard deckId' cardId' True reviewEase = do
       newInterval = max minInterval
         $ min maxInterval
         $ product
-        [ realToFrac fuzzFactor
+        [ realToFrac (fuzzFactor + 1.0)
         , realToFrac newEase
         , oldInterval
         ]
@@ -89,7 +89,7 @@ rescheduleCard deckId' cardId' False reviewEase = do
       newInterval = max minInterval
         $ min maxInterval
         $ product
-        [ realToFrac fuzzFactor
+        [ realToFrac (fuzzFactor + 1.0)
         , realToFrac newEase
         , oldInterval
         ]

@@ -287,6 +287,8 @@ lifecycle = do
                   .~ maybe (st ^. view) (fst . snd) (listSelectedElement updatedList)
                 _ -> continue newState
 
+            -- FIXME: reload decks! if the user has added cards, then the loaded deck
+            --        metadata is stale!
             DeckSelect -> do
               updatedList <- handleListEvent event $ st ^. availableDecks
               let newState = st & availableDecks .~ updatedList
@@ -375,7 +377,6 @@ lifecycle = do
                 , hCenter $ strWrap "Press A to add a new card."
                 , hCenter $ strWrap "Press T to assign the selected tag to a card."
                 , hCenter $ strWrap "Press D to assign the selected deck to a card."
-                , hCenter $ strWrap "Press Alt+T to create a new tag."
                 , hCenter $ strWrap "Press Ctrl+T to unassign the selected tag from a card."
                 , hCenter $ strWrap "Press Ctrl+D to unassign the selected deck from a card."
                 , hCenter $ strWrap "Press INS to manage disabled cards."
@@ -736,7 +737,7 @@ lifecycle = do
                 $ vBox
                 $ catMaybes
                 [ Just $ hCenter $ border $ str $ Text.unpack
-                  $ currentCard ^. val . obverse
+                  $ currentCard ^. val . reverse
                 , do
                     distance <- gameDict Map.!? "distance"
                                 >>= readMaybe . Text.unpack
