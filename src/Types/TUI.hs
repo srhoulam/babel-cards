@@ -72,6 +72,13 @@ data BabelEvent =
 
   | CreateTag Tag
 
+  | LoadCards
+  | LoadCurrCardMd
+  | LoadDecks
+  | LoadDeckCards
+  | LoadTags
+  | LoadTagCards
+
 
 -- TODO: we can't delegate quite as much responsibility to Lua
 --       as we thought.
@@ -114,6 +121,7 @@ data BabelView =
 
   | AddNewTag
   | TagsOverview
+  | TagManagement
   | Credits
 
 -- | TODO

@@ -174,7 +174,19 @@ retrieveDeckCards deckId' =
   E.select $ E.from $ \(dm `E.InnerJoin` card) -> do
     E.on $ dm E.^. DeckMemberCardId E.==. card E.^. CardId
     E.where_ $ dm E.^. DeckMemberDeckId E.==. E.val deckId'
-    E.orderBy [ E.asc $ card E.^. CardId ]
+    E.orderBy [ E.desc $ card E.^. CardEnabled
+              , E.asc $ card E.^. CardId
+              ]
+    return card
+
+retrieveTagCards :: TagId -> BabelQuery [Entity Card]
+retrieveTagCards tagId' =
+  E.select $ E.from $ \(tm `E.InnerJoin` card) -> do
+    E.on $ tm E.^. TagMemberCardId E.==. card E.^. CardId
+    E.where_ $ tm E.^. TagMemberTagId E.==. E.val tagId'
+    E.orderBy [ E.desc $ card E.^. CardEnabled
+              , E.asc $ card E.^. CardId
+              ]
     return card
 
 retrieveNextCard :: DeckId -> BabelQuery (Maybe (Entity Card))

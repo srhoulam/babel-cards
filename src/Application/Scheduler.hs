@@ -94,6 +94,8 @@ rescheduleCard deckId' cardId' False reviewEase = do
         , oldInterval
         ]
       newDueDate = addUTCTime (min newInterval nominalDay) now
+      -- We cap interval at one day for wrong answers.
+      -- This combats runaway intervals.
 
   delete qiid
   enqueueCard newQueueIndex newDueDate deckId' cardId'
