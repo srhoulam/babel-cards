@@ -17,7 +17,7 @@ module Model where
 
 import           Database.Persist.Class (ToBackendKey)
 import           Database.Persist.Quasi (lowerCaseSettings)
-import           Database.Persist.Sql   (Key, SqlBackend, fromSqlKey)
+import           Database.Persist.Sql   (Key, SqlBackend, fromSqlKey, toSqlKey)
 import           Database.Persist.TH
 import           Database.Persist.Types (Entity)
 import           Lens.Micro.TH

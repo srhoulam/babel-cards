@@ -18,43 +18,43 @@ import           RIO                    hiding (view)
 import           Types
 
 data BabelTUI = BabelTUI
-  { _babel                  :: !Babel
-  , _view                   :: !BabelView
-  , _chan                   :: !(BChan BabelEvent)
+  { babelTUIBabel                  :: !Babel
+  , babelTUIView                   :: !BabelView
+  , babelTUIChan                   :: !(BChan BabelEvent)
 
-  , _gameState              :: !(Maybe GameState)
+  , babelTUIGameState              :: !(Maybe GameState)
 
-  , _focusX                 :: !Int
+  , babelTUIFocusX                 :: !Int
   -- ^ Left-to-right focus.
   -- Each view will set and interpret this as it will.
   -- Setting min/max bounds during view transitions is
   -- advised.
-  , _focusY                 :: !Int
+  , babelTUIFocusY                 :: !Int
   -- ^ Top-to-bottom focus.
   -- Each view will set and interpret this as it will.
   -- Setting min/max bounds during view transitions is
   -- advised.
 
-  , _cardMapEnabled         :: !(IntMap (Entity Card))
-  , _cardMapDisabled        :: !(IntMap (Entity Card))
-  , _deckMap                :: !(IntMap DeckMetadata)
-  , _tagMap                 :: !(IntMap (Entity Tag))
+  , babelTUICardMapEnabled         :: !(IntMap (Entity Card))
+  , babelTUICardMapDisabled        :: !(IntMap (Entity Card))
+  , babelTUIDeckMap                :: !(IntMap DeckMetadata)
+  , babelTUITagMap                 :: !(IntMap (Entity Tag))
 
-  , _answerForm             :: !(Form Text BabelEvent String)
-  , _cardForm               :: !(Form NewCard BabelEvent String)
-  , _deckForm               :: !(Form Deck BabelEvent String)
+  , babelTUIAnswerForm             :: !(Form Text BabelEvent String)
+  , babelTUICardForm               :: !(Form CardFormState BabelEvent String)
+  , babelTUIDeckForm               :: !(Form Deck BabelEvent String)
 
   -- Display lists
-  , _activeCardDecks        :: !(GenericList String Seq DeckId)
-  , _activeCardTags         :: !(GenericList String Seq TagId)
+  , babelTUIActiveCardDecks        :: !(GenericList String Seq DeckId)
+  , babelTUIActiveCardTags         :: !(GenericList String Seq TagId)
 
   -- Interactive lists
-  , _availableCardsEnabled  :: !(GenericList String Seq CardId)
-  , _availableCardsDisabled :: !(GenericList String Seq CardId)
-  , _availableDecks         :: !(GenericList String Seq DeckId)
-  , _availableModes         :: !(GenericList String Seq BabelMode)
-  , _availableTags          :: !(GenericList String Seq TagId)
-  , _startOptions           :: !(GenericList String Seq (BabelView, String))
+  , babelTUIAvailableCardsEnabled  :: !(GenericList String Seq CardId)
+  , babelTUIAvailableCardsDisabled :: !(GenericList String Seq CardId)
+  , babelTUIAvailableDecks         :: !(GenericList String Seq DeckId)
+  , babelTUIAvailableModes         :: !(GenericList String Seq BabelMode)
+  , babelTUIAvailableTags          :: !(GenericList String Seq TagId)
+  , babelTUIStartOptions           :: !(GenericList String Seq (BabelView, String))
   }
 
 
@@ -63,7 +63,8 @@ data BabelEvent =
   | UnassignCardDeck DeckId CardId
   | AssignCardTag TagId CardId
   | UnassignCardTag TagId CardId
-  | CreateCard NewCard
+  | CreateCard CardFormState
+  | EditCard CardId CardFormState
   | DisableCard CardId
   | EnableCard CardId
 
@@ -113,6 +114,7 @@ data BabelView =
   | AddNewCard
   | CardsOverview
   | CardsOverviewDisabled
+  | CardManagement
 
   | AddNewDeck
   | DecksOverview
@@ -142,10 +144,10 @@ data GameState = GameState
   , gameStateMessagesStack :: ![String]
   }
 
-data NewCard = NewCard
-  { newCardObverse :: Text
-  , newCardReverse :: Text
-  , newCardTags    :: Text
+data CardFormState = CardFormState
+  { cardFormStateObverse :: Text
+  , cardFormStateReverse :: Text
+  , cardFormStateTags    :: Text
   }
 
 data UserInput =
@@ -153,11 +155,11 @@ data UserInput =
   | CardChoice CardId
   | TagChoice TagId
 
-makeFields ''NewCard
+makeFields ''CardFormState
 makeFields ''CardMetadata
 makeFields ''DeckMetadata
 makeFields ''GameState
-makeLenses ''BabelTUI
+makeFields ''BabelTUI
 
 -- emptyGameState :: GameState
 -- emptyGameState = GameState

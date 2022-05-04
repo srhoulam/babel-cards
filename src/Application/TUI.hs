@@ -1,7 +1,9 @@
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TypeFamilies      #-}
 module Application.TUI where
 
 import           Application.Database             as DB
@@ -87,6 +89,13 @@ lifecycle = do
               runRIO (st ^. babel) $ runDB $ update cardId' [ CardEnabled =. False ]
               continue st
 
+            EditCard cardId' cardFormState -> do
+              runRIO (st ^. babel) $ runDB $ update cardId'
+                [ CardObverse =. cardFormState ^. obverse
+                , CardReverse =. cardFormState ^. reverse
+                ]
+              continue st
+
             EnableCard cardId' -> do
               runRIO (st ^. babel) $ runDB $ update cardId' [ CardEnabled =. True ]
               continue st
@@ -159,7 +168,16 @@ lifecycle = do
                   continue newState
                 EvKey (KChar 'a') [] -> continue $ newState
                   & view .~ AddNewCard
-                  & cardForm .~ cardForm'
+                  & cardForm .~ newCardForm'
+                EvKey (KChar 'e') [] -> do
+                  let selectedCardMay' = selectedCardId
+                        >>= (IntMap.!?) (st ^. cardMapEnabled) . keyToInt
+                  cardMay <- forM selectedCardMay' $ return . entityVal
+                  case cardMay of
+                    Just card -> continue $ newState
+                      & view .~ CardManagement
+                      & cardForm .~ editCardForm' (card ^. obverse) (card ^. reverse)
+                    Nothing -> continue newState
                 EvKey (KChar 'd') [] -> do
                   _ <- liftIO $ runMaybeT $ do
                     sdid <- MaybeT $ return selectedDeckId
@@ -249,6 +267,26 @@ lifecycle = do
                 EvKey (KChar 'a') [] -> continue $ newState
                   & view .~ AddNewTag
                   & answerForm .~ answerForm'
+                _ -> continue newState
+
+            CardManagement -> do
+              updatedForm <- handleFormEvent evt $ st ^. cardForm
+              let newState = st & cardForm .~ updatedForm
+                  selectedCardIdMay = listSelectedElement (st ^. availableCardsEnabled)
+
+              case event of
+                EvKey KEsc [] ->
+                  continue $ newState & view .~ CardsOverview
+                EvKey (KChar 'd') [MCtrl] -> do
+                  liftIO $ forM_ selectedCardIdMay $ \(_, selectedCardId) -> do
+                    writeBChan (newState ^. chan)
+                      $ EditCard selectedCardId (formState updatedForm)
+                    writeBChan (newState ^. chan) LoadTags
+                    writeBChan (newState ^. chan) LoadCards
+                    writeBChan (newState ^. chan) LoadCurrCardMd
+                  continue $ newState
+                    & view .~ CardsOverview
+                    & cardForm .~ newCardForm'
                 _ -> continue newState
 
             DeckManagement -> do
@@ -518,6 +556,15 @@ lifecycle = do
                   ]
                 ]
 
+              CardManagement -> applicationTitle
+                $ vBox
+                [ hBorderWithLabel (str "Edit Card")
+                , vCenter $ renderForm $ st ^. cardForm
+                , hCenter $ strWrap "Press TAB to proceed to the next field."
+                , hCenter $ strWrap "Press Shift+TAB to return to a previous field."
+                , hCenter $ strWrap "Press Ctrl+D when finished."
+                ]
+
               DeckManagement ->
                 let selectedDeckId = fromJust $ snd
                       <$> listSelectedElement (st ^. availableDecks)
@@ -692,33 +739,33 @@ lifecycle = do
         applicationTitle = borderWithLabel (str "BabelCards")
 
         initialState env chan' = BabelTUI
-          { _babel = env
-          , _view = Start
-          , _chan = chan'
+          { babelTUIBabel = env
+          , babelTUIView = Start
+          , babelTUIChan = chan'
 
-          , _gameState = Nothing
+          , babelTUIGameState = Nothing
 
-          , _focusX = 0
-          , _focusY = 0
+          , babelTUIFocusX = 0
+          , babelTUIFocusY = 0
 
-          , _cardMapEnabled = mempty
-          , _cardMapDisabled = mempty
-          , _deckMap = mempty
-          , _tagMap  = mempty
+          , babelTUICardMapEnabled = mempty
+          , babelTUICardMapDisabled = mempty
+          , babelTUIDeckMap = mempty
+          , babelTUITagMap  = mempty
 
-          , _answerForm = answerForm'
-          , _cardForm = cardForm'
-          , _deckForm = deckForm'
+          , babelTUIAnswerForm = answerForm'
+          , babelTUICardForm = newCardForm'
+          , babelTUIDeckForm = deckForm'
 
-          , _activeCardDecks = list "activeCardDecks" mempty 1
-          , _activeCardTags = list "activeCardTags" mempty 1
+          , babelTUIActiveCardDecks = list "activeCardDecks" mempty 1
+          , babelTUIActiveCardTags = list "activeCardTags" mempty 1
 
-          , _availableCardsEnabled = list "availableCardsEnabled" mempty 1
-          , _availableCardsDisabled = list "availableCardsDisabled" mempty 1
-          , _availableDecks = list "availableDecks" mempty 1
-          , _availableModes = list "availableModes" mempty 1
-          , _availableTags  = list "availableTags"  mempty 1
-          , _startOptions = list "startOptions"
+          , babelTUIAvailableCardsEnabled = list "availableCardsEnabled" mempty 1
+          , babelTUIAvailableCardsDisabled = list "availableCardsDisabled" mempty 1
+          , babelTUIAvailableDecks = list "availableDecks" mempty 1
+          , babelTUIAvailableModes = list "availableModes" mempty 1
+          , babelTUIAvailableTags  = list "availableTags"  mempty 1
+          , babelTUIStartOptions = list "startOptions"
               (Seq.fromList
                [ (DeckSelect, "Study a Deck")
                , (CardsOverview, "Cards")
@@ -733,7 +780,15 @@ lifecycle = do
           [ editTextField id "userEntry" (Just 1) ]
           mempty
 
-        cardForm' = newForm
+        editCardForm' obverse' reverse' = newForm
+          [ (padRight (Pad 1) (str "Obverse:") <+>)
+            @@= editTextField obverse "cardObverse" (Just 1)
+          , (padRight (Pad 1) (str "Reverse:") <+>)
+            @@= editTextField reverse "cardReverse" (Just 1)
+          ]
+          (CardFormState obverse' reverse' "")
+
+        newCardForm' = newForm
           [ (padRight (Pad 1) (str "Obverse:") <+>)
             @@= editTextField obverse "cardObverse" (Just 1)
           , (padRight (Pad 1) (str "Reverse:") <+>)
@@ -741,7 +796,7 @@ lifecycle = do
           , (padRight (Pad 4) (str "Tags:") <+>)
             @@= editTextField tags "cardTagList" Nothing
           ]
-          (NewCard "" "" "")
+          (CardFormState "" "" "")
 
         deckForm' = newForm
           [ (padRight (Pad 8) (str "Name:") <+>)
@@ -1198,7 +1253,7 @@ lifecycle = do
         copyrightNotice = vBox
           $ hCenter <$>
           [ strWrap "BabelCards v0.1.0"
-          , strWrap "Copyright (c) 2021 Saad Rhoulam"
+          , strWrap "Copyright (c) 2021-2022 Saad Rhoulam"
           , strWrap "BabelCards comes with ABSOLUTELY NO WARRANTY."
           , strWrap "BabelCards is distributed under the GPLv3 license."
           ]

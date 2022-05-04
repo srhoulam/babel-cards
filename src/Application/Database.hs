@@ -59,11 +59,11 @@ unassignCardTag tagId' cardId' = do
     lift $ delete dmid
   return ()
 
-createCard :: NewCard -> BabelQuery CardId
-createCard NewCard {..} = do
-  newCardId <- insert $ Card newCardObverse newCardReverse True
+createCard :: CardFormState -> BabelQuery CardId
+createCard CardFormState {..} = do
+  newCardId <- insert $ Card cardFormStateObverse cardFormStateReverse True
 
-  let tagNames = sort $ Text.lines newCardTags
+  let tagNames = sort $ Text.lines cardFormStateTags
   existingTags <- selectList [ TagName <-. tagNames] [ Asc TagName ]
   let nonExistingTags = tagNames \\ existingTags ^.. each . val . name
       existingTagIds = existingTags ^.. each . key
