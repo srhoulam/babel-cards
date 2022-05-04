@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: dc8875883bf65467fd84ab3453c79e1d2a9366d09a378edbbcc901de4b640c0e
+-- hash: ec6d18711b47386b38fd2efc44addd562888baa4788fd06e1b384cfaa33dd875
 
 name:           babel-cards
 version:        0.1.0
@@ -53,7 +53,8 @@ library
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints
   build-depends:
-      aeson
+      ElixirFM
+    , aeson
     , base >=4.11 && <10
     , brick
     , bytestring

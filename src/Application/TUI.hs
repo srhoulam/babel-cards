@@ -315,6 +315,7 @@ lifecycle = do
                 EvKey (KChar 'd') [MCtrl] -> do
                   liftIO $ do
                     writeBChan (newState ^. chan) $ CreateCard $ formState updatedForm
+                    writeBChan (newState ^. chan) LoadTags
                     writeBChan (newState ^. chan) LoadCards
                     writeBChan (newState ^. chan) LoadCurrCardMd
                   continue $ newState & view .~ CardsOverview
