@@ -1,5 +1,4 @@
 # See PostgresConf's FromJSON instance for available fields
-userDataDir: ".local/share/babel-cards"
 database:
   connInfo:
     connectionString: 'babel-cards.sqlite'

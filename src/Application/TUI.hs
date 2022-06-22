@@ -503,6 +503,7 @@ lifecycle = do
                 , hCenter $ strWrap "Switch lists with left/right keys."
                 , hCenter $ strWrap "Select list options with up/down keys."
                 , hCenter $ strWrap "Press A to add a new card."
+                , hCenter $ strWrap "Press E to edit a card."
                 , hCenter $ strWrap "Press T to assign the selected tag to a card."
                 , hCenter $ strWrap "Press D to assign the selected deck to a card."
                 , hCenter $ strWrap "Press Ctrl+T to unassign the selected tag from a card."

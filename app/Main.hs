@@ -8,6 +8,7 @@ import Import.Main
 import RIO.Process
 import Options.Applicative.Simple
 import qualified Paths_babel_cards
+import System.Environment.XDG.BaseDir
 
 main :: IO ()
 main = do
@@ -27,7 +28,8 @@ main = do
   settings <- loadSettings
   config <- loadConfig
   rngTV <- newTFGen >>= newTVarIO
-  connPool <- createConnPool settings
+  dataDir <- getUserDataDir "babel-cards"
+  connPool <- createConnPool dataDir settings
   withLogFunc lo $ \lf ->
     let babel = Babel
           { bLogFunc = lf

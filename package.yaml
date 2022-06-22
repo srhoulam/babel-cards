@@ -81,6 +81,7 @@ executables:
     dependencies:
     - babel-cards
     - optparse-simple
+    - xdg-basedir
     ghc-options:
     - -threaded
     - -rtsopts

@@ -37,10 +37,7 @@ data BabelConfig = BabelConfig
   }
 
 data BabelEmbeddedSettings = BabelEmbeddedSettings
-  { besUserDataDir :: !String
-  -- ^ User data directory, as a relpath from the
-  -- user's $HOME.
-  , besDatabase    :: !SqliteConf
+  { besDatabase    :: !SqliteConf
   } deriving Generic
 
 $(deriveFromJSON defaultOptions { fieldLabelModifier = decapitalize . drop 3 } 'BabelEmbeddedSettings)

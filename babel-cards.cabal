@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ec6d18711b47386b38fd2efc44addd562888baa4788fd06e1b384cfaa33dd875
+-- hash: 9fde3af3248564b38705619462ce38aca0340fe72457770b3ee367564ef4e1c4
 
 name:           babel-cards
 version:        0.1.0
@@ -93,4 +93,5 @@ executable babel-cards
     , base >=4.11 && <10
     , optparse-simple
     , rio >=0.1.12.0
+    , xdg-basedir
   default-language: Haskell2010
