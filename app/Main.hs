@@ -1,14 +1,13 @@
 {-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell   #-}
 module Main (main) where
 
-import Application
-import Import
-import Import.Main
-import RIO.Process
-import Options.Applicative.Simple
+import           Application
+import           Import
+import           Import.Main
+import           Options.Applicative.Simple
 import qualified Paths_babel_cards
-import System.Environment.XDG.BaseDir
+import           RIO.Process
 
 main :: IO ()
 main = do
@@ -25,11 +24,10 @@ main = do
 
   lo <- logOptionsHandle stderr (optionsVerbose options)
   pc <- mkDefaultProcessContext
-  settings <- loadSettings
+  dbSettings <- loadSettings
   config <- loadConfig
   rngTV <- newTFGen >>= newTVarIO
-  dataDir <- getUserDataDir "babel-cards"
-  connPool <- createConnPool dataDir settings
+  connPool <- createConnPool dbSettings
   withLogFunc lo $ \lf ->
     let babel = Babel
           { bLogFunc = lf
@@ -37,7 +35,7 @@ main = do
           , bOptions = options
           , bRNG = rngTV
           , bConfig = config
-          , bEmbeddedSettings = settings
+          , bDatabaseSettings = dbSettings
           , bConnPool = connPool
           }
      in runRIO babel bootstrapBabel

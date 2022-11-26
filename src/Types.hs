@@ -28,7 +28,7 @@ data Babel = Babel
   , bConnPool         :: !ConnectionPool
   , bRNG              :: !(TVar TFGen)
   , bConfig           :: !BabelConfig
-  , bEmbeddedSettings :: !BabelEmbeddedSettings
+  , bDatabaseSettings :: !SqliteConf
   }
 
 data BabelConfig = BabelConfig
@@ -36,11 +36,6 @@ data BabelConfig = BabelConfig
   , bcMinInterval :: !NominalDiffTime
   }
 
-data BabelEmbeddedSettings = BabelEmbeddedSettings
-  { besDatabase    :: !SqliteConf
-  } deriving Generic
-
-$(deriveFromJSON defaultOptions { fieldLabelModifier = decapitalize . drop 3 } 'BabelEmbeddedSettings)
 $(deriveJSON defaultOptions { fieldLabelModifier = decapitalize . drop 2} 'BabelConfig)
 
 instance HasLogFunc Babel where

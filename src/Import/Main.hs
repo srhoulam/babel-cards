@@ -5,7 +5,6 @@ import           Database.Persist.Sql    (ConnectionPool)
 import           Database.Persist.Sqlite (SqliteConf (..), createSqlitePool,
                                           createSqlitePoolFromInfo,
                                           sqlConnectionStr)
-
 import           Import
 import           Settings                as Import.Main (loadSettings)
 import           System.Directory        (createDirectoryIfMissing)
@@ -13,21 +12,19 @@ import           System.Environment
 import           System.FilePath.Posix
 import           System.Random.TF.Init   as Import.Main (newTFGen)
 import           Util.String             (mapText)
+import           System.Environment.XDG.BaseDir (getUserDataDir)
 
-createConnPool :: FilePath -> BabelEmbeddedSettings -> IO ConnectionPool
-createConnPool dataDir' settings = do
-  dataDir <- ensureDataDirExists dataDir'
-  runNoLoggingT $ case besDatabase settings of
-    SqliteConf connStr poolSize ->
-      createSqlitePool (mapText (dataDir </>) connStr) poolSize
-    SqliteConfInfo confInfo poolSize -> createSqlitePoolFromInfo
-      (over sqlConnectionStr (mapText (dataDir </>)) confInfo)
-      poolSize
+createConnPool :: SqliteConf -> IO ConnectionPool
+createConnPool settings = do
+  ensureDataDirExists
+  runNoLoggingT $ case settings of
+    -- SqliteConf connStr poolSize ->
+    --   createSqlitePool (mapText (dataDir </>) connStr) poolSize
+    info@(SqliteConfInfo connInfo poolSize) -> createSqlitePoolFromInfo connInfo poolSize
 
-ensureDataDirExists :: FilePath -> IO FilePath
-ensureDataDirExists dataDir =
-  createDirectoryIfMissing True dataDir
-  >> return dataDir
+ensureDataDirExists :: IO ()
+ensureDataDirExists =
+  getUserDataDir "babel-cards" >>= createDirectoryIfMissing True
 
 loadConfig :: IO BabelConfig
 loadConfig = do

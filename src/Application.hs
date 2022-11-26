@@ -2,11 +2,11 @@
 module Application (bootstrapBabel) where
 
 import           Application.Database
-import           Database.Persist.Sql   (runMigration)
+import           Database.Persist.Sql (runMigration)
 -- import           Model
+import           Application.TUI      (lifecycle)
 import           RIO
 import           Types
-import Application.TUI (lifecycle)
 
 bootstrapBabel :: RIO Babel ()
 bootstrapBabel = do
