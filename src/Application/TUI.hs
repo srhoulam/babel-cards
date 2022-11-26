@@ -500,17 +500,17 @@ lifecycle = do
                     (st ^. focusX == 2)
                     $ st ^. availableCardsEnabled
                   ]
-                , hCenter $ strWrap "Switch lists with left/right keys."
-                , hCenter $ strWrap "Select list options with up/down keys."
-                , hCenter $ strWrap "Press A to add a new card."
-                , hCenter $ strWrap "Press E to edit a card."
-                , hCenter $ strWrap "Press T to assign the selected tag to a card."
-                , hCenter $ strWrap "Press D to assign the selected deck to a card."
-                , hCenter $ strWrap "Press Ctrl+T to unassign the selected tag from a card."
-                , hCenter $ strWrap "Press Ctrl+D to unassign the selected deck from a card."
-                , hCenter $ strWrap "Press INS to manage disabled cards."
-                , hCenter $ strWrap "Press DEL to disable the selected card."
-                , hCenter $ strWrap "Press ESC to return."
+                , hCenter $ str "Switch lists with left/right keys."
+                , hCenter $ str "Select list options with up/down keys."
+                , hCenter $ str "Press A to add a new card."
+                , hCenter $ str "Press E to edit a card."
+                , hCenter $ str "Press T to assign the selected tag to a card."
+                , hCenter $ str "Press D to assign the selected deck to a card."
+                , hCenter $ str "Press Ctrl+T to unassign the selected tag from a card."
+                , hCenter $ str "Press Ctrl+D to unassign the selected deck from a card."
+                , hCenter $ str "Press INS to manage disabled cards."
+                , hCenter $ str "Press DEL to disable the selected card."
+                , hCenter $ str "Press ESC to return."
                 ]
 
               CardsOverviewDisabled -> applicationTitle
@@ -523,8 +523,8 @@ lifecycle = do
                   (renderCardOption $ st ^. cardMapDisabled)
                   (st ^. focusX == 2)
                   $ st ^. availableCardsDisabled
-                , hCenter $ strWrap "Press ENTER to enable a card."
-                , hCenter $ strWrap "Press ESC to return."
+                , hCenter $ str "Press ENTER to enable a card."
+                , hCenter $ str "Press ESC to return."
                 ]
 
               DecksOverview -> applicationTitle
@@ -535,10 +535,10 @@ lifecycle = do
                   [ hCenter
                     $ renderList (renderDeckOverviewOption $ st ^. deckMap) True
                     $ st ^. availableDecks
-                  , hCenter (strWrap "Press ENTER to make a selection.")
-                  , hCenter (strWrap "Press A to add a new deck.")
-                  , hCenter (strWrap "Press DEL to delete the selected deck.")
-                  , hCenter (strWrap "Press ESC to return.")
+                  , hCenter $ str "Press ENTER to make a selection."
+                  , hCenter $ str "Press A to add a new deck."
+                  , hCenter $ str "Press DEL to delete the selected deck."
+                  , hCenter $ str "Press ESC to return."
                   ]
                 ]
 
@@ -550,10 +550,10 @@ lifecycle = do
                   [ hCenter
                     $ renderList (renderTagOption $ st ^. tagMap) True
                     $ st ^. availableTags
-                  , hCenter (strWrap "Press ENTER to make a selection.")
-                  , hCenter (strWrap "Press A to add a new tag.")
-                  -- , hCenter (strWrap "Press DEL to delete the selected tag.")
-                  , hCenter (strWrap "Press ESC to return.")
+                  , hCenter $ str "Press ENTER to make a selection."
+                  , hCenter $ str "Press A to add a new tag."
+                  -- , hCenter $ str "Press DEL to delete the selected tag."
+                  , hCenter $ str "Press ESC to return."
                   ]
                 ]
 
@@ -561,9 +561,9 @@ lifecycle = do
                 $ vBox
                 [ hBorderWithLabel (str "Edit Card")
                 , vCenter $ renderForm $ st ^. cardForm
-                , hCenter $ strWrap "Press TAB to proceed to the next field."
-                , hCenter $ strWrap "Press Shift+TAB to return to a previous field."
-                , hCenter $ strWrap "Press Ctrl+D when finished."
+                , hCenter $ str "Press TAB to proceed to the next field."
+                , hCenter $ str "Press Shift+TAB to return to a previous field."
+                , hCenter $ str "Press Ctrl+D when finished."
                 ]
 
               DeckManagement ->
@@ -579,8 +579,8 @@ lifecycle = do
                      (renderCardOption $ st ^. cardMapEnabled)
                      (st ^. focusX == 2)
                      $ st ^. availableCardsEnabled
-                   , hCenter $ strWrap "Press DEL to disable the selected card."
-                   , hCenter $ strWrap "Press Ctrl+D to unassign the selected deck from a card."
+                   , hCenter $ str "Press DEL to disable the selected card."
+                   , hCenter $ str "Press Ctrl+D to unassign the selected deck from a card."
                    -- TODO: deck form for editing the active deck's
                    --       name and desc
                    ]
@@ -598,8 +598,8 @@ lifecycle = do
                      (renderCardOption $ st ^. cardMapEnabled)
                      (st ^. focusX == 2)
                      $ st ^. availableCardsEnabled
-                   , hCenter $ strWrap "Press DEL to disable the selected card."
-                   , hCenter $ strWrap "Press Ctrl+D to unassign the selected deck from a card."
+                   , hCenter $ str "Press DEL to disable the selected card."
+                   , hCenter $ str "Press Ctrl+D to unassign the selected deck from a card."
                    -- TODO: tag form for editing the active tag's
                    --       name and desc
                    ]
@@ -608,25 +608,25 @@ lifecycle = do
                 $ vBox
                 [ hBorderWithLabel (str "Add New Card")
                 , vCenter $ renderForm $ st ^. cardForm
-                , hCenter $ strWrap "Press TAB to proceed to the next field."
-                , hCenter $ strWrap "Press Shift+TAB to return to a previous field."
-                , hCenter $ strWrap "Press Ctrl+D when finished."
+                , hCenter $ str "Press TAB to proceed to the next field."
+                , hCenter $ str "Press Shift+TAB to return to a previous field."
+                , hCenter $ str "Press Ctrl+D when finished."
                 ]
 
               AddNewTag -> applicationTitle
                 $ vBox
                 [ hBorderWithLabel (str "Add New Tag")
                 , vCenter $ border $ renderForm $ st ^. answerForm
-                , hCenter $ strWrap "Press ENTER when finished."
+                , hCenter $ str "Press ENTER when finished."
                 ]
 
               AddNewDeck -> applicationTitle
                 $ vBox
                 [ hBorderWithLabel (str "Add New Deck")
                 , vCenter $ renderForm $ st ^. deckForm
-                , hCenter $ strWrap "Press TAB to proceed to the next field."
-                , hCenter $ strWrap "Press Shift+TAB to return to a previous field."
-                , hCenter $ strWrap "Press Ctrl+D when finished."
+                , hCenter $ str "Press TAB to proceed to the next field."
+                , hCenter $ str "Press Shift+TAB to return to a previous field."
+                , hCenter $ str "Press Ctrl+D when finished."
                 ]
 
               DeleteDeckConfirm ->
@@ -638,20 +638,20 @@ lifecycle = do
                    $ vCenter
                    $ borderWithLabel (str "Delete Deck")
                    $ vBox
-                   [ hCenter $ strWrap
+                   [ strWrap
                      ([i|To confirm deletion, write '#{selectedDeckName}' in the box below and press ENTER. This cannot be undone. To cancel, press ESC.|])
                    , hCenter $ border $ renderForm $ st ^. answerForm
                    ]
 
               Start -> applicationTitle
                 $ vBox
-                [ hCenter $ strWrap "A flash-cards memorization tool."
+                [ hCenter $ str "A flash-cards memorization tool."
                 , hBorder
-                , vCenter
+                , hCenter
                   $ vBox
                   [ renderList renderStartOption True $ st ^. startOptions
-                  , hCenter (strWrap "Press ENTER to make a selection.")
-                  , hCenter (strWrap "Press Q to quit.")
+                  , hCenter $ str "Press ENTER to make a selection."
+                  , hCenter $ str "Press Q to quit."
                   ]
                 , hBorder
                 , copyrightNotice
@@ -665,8 +665,8 @@ lifecycle = do
                   [ hCenter
                     $ renderList (renderDeckOverviewOption $ st ^. deckMap) True
                     $ st ^. availableDecks
-                  , hCenter (strWrap "Press ENTER to make a selection.")
-                  , hCenter (strWrap "Press ESC to return.")
+                  , hCenter (str "Press ENTER to make a selection.")
+                  , hCenter (str "Press ESC to return.")
                   ]
                 ]
 
@@ -685,19 +685,16 @@ lifecycle = do
                 $ vBox
                 [ hBorderWithLabel (str "You Win!")
                 , vCenter $ vBox
-                  [ hCenter $ border $ strWrap " Y O U   W I N ! "
-                  , hCenter (strWrap "Studying is a game where you always win :)")
-                  , hCenter (strWrap "Press ESC to return to main menu.")
+                  [ hCenter $ border $ str " Y O U   W I N ! "
+                  , hCenter $ str "Studying is a game where you always win :)"
+                  , hCenter $ str "Press ESC to return to main menu."
                   ]
                 ]
 
               Credits -> applicationTitle
                 $ vBox
                 [ hBorderWithLabel (str "Credits")
-                , vCenter
-                  $ vBox
-                  [ str "Saad Rhoulam <saad@rhoulam.tech>"
-                  ]
+                , vCenter copyrightNotice
                 ]
           ]
 
@@ -735,7 +732,7 @@ lifecycle = do
           $ tmap ^?! at (keyToInt tagId') . _Just . val . name
 
         renderStartOption _ (_, label) =
-          hCenter $ strWrap label
+          hCenter $ str label
 
         applicationTitle = borderWithLabel (str "BabelCards")
 
@@ -956,8 +953,8 @@ lifecycle = do
                     guard (distance /= 0)
                     userAnswer <- gameDict Map.!? "userAnswer"
                     return $ hCenter $ border $ vBox
-                      [ strWrap ([i|Your answer: #{userAnswer}|])
-                      , strWrap $ mappend "Card answer: "
+                      [ str ([i|Your answer: #{userAnswer}|])
+                      , str $ mappend "Card answer: "
                         $ Text.unpack
                         $ currentCard ^. val . obverse
                       , str ([i|Distance: #{distance}|])
@@ -1008,8 +1005,8 @@ lifecycle = do
                     guard (distance /= 0)
                     userAnswer <- gameDict Map.!? "userAnswer"
                     return $ hCenter $ border $ vBox
-                      [ strWrap ([i|Your answer: #{userAnswer}|])
-                      , strWrap $ mappend "Card answer: "
+                      [ str ([i|Your answer: #{userAnswer}|])
+                      , str $ mappend "Card answer: "
                         $ Text.unpack
                         $ currentCard ^. val . reverse
                       , str ([i|Distance: #{distance}|])
@@ -1023,7 +1020,7 @@ lifecycle = do
                                 ])
 
                 , Just $ hCenter $ hBox
-                  $ border . strWrap <$> currentCardTagNames
+                  $ border . str <$> currentCardTagNames
                 , Just $ hCenter $ border
                   $ renderForm $ st ^. answerForm
                 ]
@@ -1253,8 +1250,11 @@ lifecycle = do
 
         copyrightNotice = vBox
           $ hCenter <$>
-          [ strWrap "BabelCards v0.1.0"
-          , strWrap "Copyright (c) 2021-2022 Saad Rhoulam"
-          , strWrap "BabelCards comes with ABSOLUTELY NO WARRANTY."
-          , strWrap "BabelCards is distributed under the GPLv3 license."
+          [ str "BabelCards v0.1.0"
+          , str "Copyright (c) 2021-2022 Saad Rhoulam"
+          , str "BabelCards comes with ABSOLUTELY NO WARRANTY."
+          , str "BabelCards is distributed under the GPLv3 license."
+          , hBorder
+          , str "Development sponsored by Rhoulam Technologies LLC"
+          , str "https://www.rhoulam.tech"
           ]

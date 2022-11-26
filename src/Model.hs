@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE EmptyDataDecls             #-}
 {-# LANGUAGE FlexibleContexts           #-}
@@ -17,12 +18,11 @@ module Model where
 
 import           Database.Persist.Class (ToBackendKey)
 import           Database.Persist.Quasi (lowerCaseSettings)
-import           Database.Persist.Sql   (Key, SqlBackend, fromSqlKey, toSqlKey)
+import           Database.Persist.Sql   (Key, SqlBackend, fromSqlKey)
 import           Database.Persist.TH
 import           Database.Persist.Types (Entity)
 import           Lens.Micro.TH
 import           RIO
-import           RIO.Text               (Text)
 import           RIO.Time               (UTCTime)
 import           Types.Review
 
