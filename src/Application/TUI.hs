@@ -116,7 +116,7 @@ lifecycle = do
               continue st
 
           VtyEvent event -> case st ^. view of
-            Playing -> case st ^?! gameState . _Just . mode of
+            Playing -> case fromJust $ st ^. matchMode of
               Standard -> playStandardGame st evt event
               Reverse  -> playReverseGame st evt event
 
@@ -389,8 +389,8 @@ lifecycle = do
 
               let newState = st & answerForm .~ updatedForm
                   userInput = formState updatedForm
-                  selectedDeckId = fromJust $ snd
-                    <$> listSelectedElement (st ^. availableDecks)
+                  selectedDeckId = snd $ fromJust
+                    $ listSelectedElement (st ^. availableDecks)
                   selectedDeck = st ^?! deckMap . at (keyToInt selectedDeckId) . _Just
                   selectedDeckName = selectedDeck ^. deckEntity . val . name
                   userInputMatchesName = Just userInput == Just selectedDeckName
@@ -429,25 +429,18 @@ lifecycle = do
 
             ModeSelect -> do
               updatedList <- handleListEvent event $ st ^. availableModes
-              let newState = st & availableModes .~ updatedList
-                  selectedMode = fromJust $ snd
-                    <$> listSelectedElement updatedList
+              let newState = st
+                    & availableModes .~ updatedList
+                  selectedMode = snd $ fromJust
+                    $ listSelectedElement updatedList
 
               case event of
                 EvKey KEsc [] -> continue $ newState
                   & view .~ DeckSelect
-                EvKey KEnter [] -> case selectedMode of
-                  _ -> prepareStandardGame
+                EvKey KEnter [] -> prepareStandardGame
                     $ newState
+                    & matchMode ?~ selectedMode
                     & view .~ Playing
-                    & gameState ?~ GameState
-                    { gameStateMode = selectedMode
-                    , gameStateCards = mempty
-                    , gameStateScore = 0
-                    , gameStateDict = mempty
-                    , gameStateUserInputStack = mempty
-                    , gameStateMessagesStack = mempty
-                    }
                 _ -> continue newState
 
             GameOver -> case event of
@@ -462,7 +455,7 @@ lifecycle = do
 
         appDraw st = catMaybes
           [ Just $ case st ^. view of
-              Playing -> case st ^?! gameState . _Just . mode of
+              Playing -> case st ^?! matchMode . _Just of
                 Standard -> drawStandardGame st
                 Reverse  -> drawReverseGame st
 
@@ -567,8 +560,8 @@ lifecycle = do
                 ]
 
               DeckManagement ->
-                let selectedDeckId = fromJust $ snd
-                      <$> listSelectedElement (st ^. availableDecks)
+                let selectedDeckId = snd $ fromJust
+                      $ listSelectedElement (st ^. availableDecks)
                     selectedDeck = st ^?! deckMap . at (keyToInt selectedDeckId) . _Just
                     selectedDeckName = selectedDeck ^. deckEntity . val . name
                 in applicationTitle
@@ -580,14 +573,14 @@ lifecycle = do
                      (st ^. focusX == 2)
                      $ st ^. availableCardsEnabled
                    , hCenter $ str "Press DEL to disable the selected card."
-                   , hCenter $ str "Press Ctrl+D to unassign the selected deck from a card."
+                   , hCenter $ str "Press Ctrl+D to unassign the selected card from this deck."
                    -- TODO: deck form for editing the active deck's
                    --       name and desc
                    ]
 
               TagManagement ->
-                let selectedTagId = fromJust $ snd
-                      <$> listSelectedElement (st ^. availableTags)
+                let selectedTagId = snd $ fromJust
+                      $ listSelectedElement (st ^. availableTags)
                     selectedTag = st ^?! tagMap . at (keyToInt selectedTagId) . _Just
                     selectedTagName = selectedTag ^. val . name
                 in applicationTitle
@@ -599,7 +592,7 @@ lifecycle = do
                      (st ^. focusX == 2)
                      $ st ^. availableCardsEnabled
                    , hCenter $ str "Press DEL to disable the selected card."
-                   , hCenter $ str "Press Ctrl+D to unassign the selected deck from a card."
+                   , hCenter $ str "Press Ctrl+T to unassign the selected card from this tag."
                    -- TODO: tag form for editing the active tag's
                    --       name and desc
                    ]
@@ -630,8 +623,8 @@ lifecycle = do
                 ]
 
               DeleteDeckConfirm ->
-                let selectedDeckId = fromJust $ snd
-                      <$> listSelectedElement (st ^. availableDecks)
+                let selectedDeckId = snd $ fromJust
+                      $ listSelectedElement (st ^. availableDecks)
                     selectedDeck = st ^?! deckMap . at (keyToInt selectedDeckId) . _Just
                     selectedDeckName = selectedDeck ^. deckEntity . val . name
                 in applicationTitle
@@ -741,7 +734,12 @@ lifecycle = do
           , babelTUIView = Start
           , babelTUIChan = chan'
 
-          , babelTUIGameState = Nothing
+          , babelTUIMatchMode = Nothing
+          , babelTUIActiveCard = Nothing
+          , babelTUIUserAnswer = Nothing
+          , babelTUIAnswerDistance = Nothing
+          , babelTUIReviewStartTimestamp = Nothing
+          , babelTUIReviewEndTimestamp = Nothing
 
           , babelTUIFocusX = 0
           , babelTUIFocusY = 0
@@ -861,8 +859,8 @@ lifecycle = do
             & availableCardsEnabled .~ newCardsList
 
         loadCardsForDeck st = do
-          let selectedDeckId = fromJust $ snd
-                <$> listSelectedElement (st ^. availableDecks)
+          let selectedDeckId = snd $ fromJust
+                $ listSelectedElement (st ^. availableDecks)
 
           availCards <- runRIO (st ^. babel) $ runDB $ retrieveDeckCards selectedDeckId
           let cmap = IntMap.fromList
@@ -878,8 +876,8 @@ lifecycle = do
             & availableCardsEnabled .~ newCardsList
 
         loadCardsForTag st = do
-          let selectedTagId = fromJust $ snd
-                <$> listSelectedElement (st ^. availableTags)
+          let selectedTagId = snd $ fromJust
+                $ listSelectedElement (st ^. availableTags)
 
           availCards <- runRIO (st ^. babel) $ runDB $ retrieveTagCards selectedTagId
           let cmap = IntMap.fromList
@@ -925,15 +923,16 @@ lifecycle = do
             & tagMap  .~ tmap
             & availableTags  .~ newTagsList
 
-        returnToStart st = loadAll (st & view .~ Start) >>= continue
+        returnToStart st = loadAll
+          (st & view .~ Start)
+          >>= continue
 
         drawReverseGame st =
-          let selectedDeckId = fromJust $ snd
-                <$> listSelectedElement (st ^. availableDecks)
+          let selectedDeckId = snd $ fromJust
+                $ listSelectedElement (st ^. availableDecks)
               selectedDeck = st ^?! deckMap . at (keyToInt selectedDeckId) . _Just
               selectedDeckName = selectedDeck ^. deckEntity . val . name
-              gameDict = st ^?! gameState . _Just . dict
-              currentCard = st ^?! gameState . _Just . cards . each . _Just
+              currentCard = st ^?! activeCard . _Just
           in applicationTitle
               $ vBox
               [ hBorderWithLabel (str [i|Studying: #{selectedDeckName}|])
@@ -943,23 +942,21 @@ lifecycle = do
                 [ Just $ hCenter $ border $ str $ Text.unpack
                   $ currentCard ^. val . reverse
                 , do
-                    distance <- gameDict Map.!? "distance"
-                                >>= readMaybe . Text.unpack
-                    guard (distance == 0)
+                    distance <- st ^. answerDistance
+                    guard $ isJust (st ^. userAnswer) && distance == 0
                     return $ hBorderWithLabel (str "Correct!")
                 , do
-                    distance <- gameDict Map.!? "distance"
-                                >>= readMaybe . Text.unpack
-                    guard (distance /= 0)
-                    userAnswer <- gameDict Map.!? "userAnswer"
+                    distance <- st ^. answerDistance
+                    guard $ isJust (st ^. userAnswer) && distance /= 0
+                    userAnswer' <- st ^. userAnswer
                     return $ hCenter $ border $ vBox
-                      [ str ([i|Your answer: #{userAnswer}|])
+                      [ str ([i|Your answer: #{userAnswer'}|])
                       , str $ mappend "Card answer: "
                         $ Text.unpack
                         $ currentCard ^. val . obverse
                       , str ([i|Distance: #{distance}|])
                       ]
-                , gameDict Map.!? "userAnswer"
+                , st ^. userAnswer
                   >> return (hCenter $ hBox $ border
                             <$> [ str "0 - Again"
                                 , str "1 - Hard"
@@ -973,12 +970,11 @@ lifecycle = do
               ]
 
         drawStandardGame st =
-          let selectedDeckId = fromJust $ snd
-                <$> listSelectedElement (st ^. availableDecks)
+          let selectedDeckId = snd $ fromJust
+                $ listSelectedElement (st ^. availableDecks)
               selectedDeck = st ^?! deckMap . at (keyToInt selectedDeckId) . _Just
               selectedDeckName = selectedDeck ^. deckEntity . val . name
-              gameDict = st ^?! gameState . _Just . dict
-              currentCard = st ^?! gameState . _Just . cards . each . _Just
+              currentCard = st ^?! activeCard . _Just
               currentCardTags = toList $ st ^. activeCardTags . listElementsL
               currentCardTagNames = fmap Text.unpack
                 . catMaybes
@@ -995,23 +991,21 @@ lifecycle = do
                 [ Just $ hCenter $ border $ str $ Text.unpack
                   $ currentCard ^. val . obverse
                 , do
-                    distance <- gameDict Map.!? "distance"
-                                >>= readMaybe . Text.unpack
-                    guard (distance == 0)
+                    distance <- st ^. answerDistance
+                    guard $ isJust (st ^. userAnswer) && distance == 0
                     return $ hBorderWithLabel (str "Correct!")
                 , do
-                    distance <- gameDict Map.!? "distance"
-                                >>= readMaybe . Text.unpack
-                    guard (distance /= 0)
-                    userAnswer <- gameDict Map.!? "userAnswer"
+                    distance <- st ^. answerDistance
+                    guard $ isJust (st ^. userAnswer) && distance /= 0
+                    userAnswer' <- st ^. userAnswer
                     return $ hCenter $ border $ vBox
-                      [ str ([i|Your answer: #{userAnswer}|])
+                      [ str ([i|Your answer: #{userAnswer'}|])
                       , str $ mappend "Card answer: "
                         $ Text.unpack
                         $ currentCard ^. val . reverse
                       , str ([i|Distance: #{distance}|])
                       ]
-                , gameDict Map.!? "userAnswer"
+                , st ^. userAnswer
                   >> return (hCenter $ hBox $ border
                             <$> [ str "0 - Again"
                                 , str "1 - Hard"
@@ -1031,89 +1025,70 @@ lifecycle = do
 
           let newState = st & answerForm .~ updatedForm
               userInput = formState updatedForm
-              existingUserAnswer = join
-                $ newState
-                ^? gameState . _Just . dict . at "userAnswer"
 
           case event of
             EvKey KEsc [] -> returnToStart newState
-            EvKey KEnter [] -> case existingUserAnswer of
-              Just _ -> continue newState
-              Nothing -> do
-                now <- getCurrentTime
+            EvKey KEnter [] -> do
+              now <- getCurrentTime
 
-                let currentCard =
-                      st ^?! gameState . _Just . cards . each
-                    cardAnswerText =
-                      currentCard ^?! _Just . val . DB.obverse
-                    answerDistance =
-                      restrictedDamerauLevenshteinDistance
-                      defaultEditCosts
-                      (Text.unpack userInput)
-                      (Text.unpack cardAnswerText)
-                    newState1 = newState
-                      & gameState . _Just . dict . at "cardAnswer"
-                      ?~ cardAnswerText
-                      & gameState . _Just . dict . at "userAnswer"
-                      ?~ userInput
-                      & gameState . _Just . dict . at "distance"
-                      ?~ Text.pack (show answerDistance)
-                      & gameState . _Just . dict . at "endTimestamp"
-                      ?~ Text.pack (formatTime defaultTimeLocale dateTimeFormat now)
+              let currentCard = fromJust $ st ^. activeCard
+                  cardAnswerText = currentCard ^. val . DB.obverse
+                  answerDistance' =
+                    restrictedDamerauLevenshteinDistance
+                    defaultEditCosts
+                    (Text.unpack userInput)
+                    (Text.unpack cardAnswerText)
+                  newState1 = newState
+                    & userAnswer ?~ userInput
+                    & answerDistance ?~ answerDistance'
+                    & reviewEndTimestamp ?~ now
 
-                continue newState1
+              continue newState1
 
-            EvKey (KChar keyPressed) [] -> case existingUserAnswer of
-              Nothing -> continue newState
-              Just _ -> do
-                let currentCardId =
-                      st ^?! gameState . _Just . cards . each . _Just . key
-                    selectedDeckId = fromJust $ snd
-                      <$> listSelectedElement (st ^. availableDecks)
-                    gameStateDict =
-                      st ^?! gameState . _Just . dict
+            EvKey (KChar keyPressed) [] -> do
+              let currentCardId =
+                    st ^?! activeCard . _Just . key
+                  selectedDeckId = snd $ fromJust
+                    $ listSelectedElement (st ^. availableDecks)
 
-                -- omnibus maybe-gating
-                result <- runMaybeT $ do
-                  ease' <- MaybeT $ return $ readMaybe [keyPressed]
-                  guard $ ease' >= 0 && ease' <= 3
+              -- omnibus maybe-gating
+              result <- runMaybeT $ do
+                ease' <- MaybeT $ return $ readMaybe [keyPressed]
+                guard $ ease' >= 0 && ease' <= 3
 
-                  startTime <- MaybeT $ return
-                    $ (gameStateDict Map.!? "startTimestamp")
-                    >>= parseTimeM False defaultTimeLocale dateTimeFormat
-                    . Text.unpack
-                  endTime <- MaybeT $ return
-                    $ (gameStateDict Map.!? "endTimestamp")
-                    >>= parseTimeM False defaultTimeLocale dateTimeFormat
-                    . Text.unpack
+                -- NOTE: checking user answer for more understandable
+                -- gating on completed reviews for ease reporting
+                _userAnswer <- MaybeT $ return $ st ^. userAnswer
+                startTime <- MaybeT $ return $ st ^. reviewStartTimestamp
+                endTime <- MaybeT $ return $ st ^. reviewEndTimestamp
+                distance <- MaybeT $ return $ st ^. answerDistance
 
-                  distance <- MaybeT $ return
-                    $ (gameStateDict Map.!? "distance")
-                    >>= readMaybe . Text.unpack
+                qiEntity <- MaybeT $ runRIO (newState ^. babel)
+                  $ runDB $ getBy
+                  $ UniqueQueueCard selectedDeckId currentCardId
+                return (toEnum ease', qiEntity, diffUTCTime endTime startTime, distance)
 
-                  qiEntity <- MaybeT $ runRIO (newState ^. babel)
-                    $ runDB $ getBy
-                    $ UniqueQueueCard selectedDeckId currentCardId
-                  return (toEnum ease', qiEntity, diffUTCTime endTime startTime, distance)
+              case result of
+                Nothing -> continue newState
+                Just (reviewEase, Entity _ qi, duration, distance) -> do
+                  runRIO (newState ^. babel) $ runDB $ do
+                    logReview selectedDeckId currentCardId
+                      distance
+                      duration
+                      reviewEase
+                      (queueItemIndex qi)
 
-                case result of
-                  Nothing -> continue newState
-                  Just (reviewEase, Entity _ qi, duration, distance) -> do
-                    runRIO (newState ^. babel) $ runDB $ do
-                      logReview selectedDeckId currentCardId
-                        distance
-                        duration
-                        reviewEase
-                        (queueItemIndex qi)
+                    rescheduleCard selectedDeckId currentCardId
+                      (distance == 0)
+                      reviewEase
 
-                      rescheduleCard selectedDeckId currentCardId
-                        (distance == 0)
-                        reviewEase
+                  prepareStandardGame $ newState
+                    & activeCard .~ Nothing
+                    & userAnswer .~ Nothing
+                    & answerDistance .~ Nothing
+                    & reviewEndTimestamp .~ Nothing
+                    & reviewStartTimestamp .~ Nothing
 
-                    prepareStandardGame $ newState
-                      & gameState . _Just
-                      %~ ((cards .~ [])
-                          . (dict .~ mempty))
             _ -> continue newState
 
         playStandardGame st evt event = do
@@ -1121,94 +1096,75 @@ lifecycle = do
 
           let newState = st & answerForm .~ updatedForm
               userInput = formState updatedForm
-              existingUserAnswer = join
-                $ newState
-                ^? gameState . _Just . dict . at "userAnswer"
 
           case event of
             EvKey KEsc [] -> returnToStart newState
-            EvKey KEnter [] -> case existingUserAnswer of
-              Just _ -> continue newState
-              Nothing -> do
-                now <- getCurrentTime
+            EvKey KEnter [] -> do
+              now <- getCurrentTime
 
-                let currentCard =
-                      st ^?! gameState . _Just . cards . each
-                    cardAnswerText =
-                      currentCard ^?! _Just . val . DB.reverse
-                    answerDistance =
-                      restrictedDamerauLevenshteinDistance
-                      defaultEditCosts
-                      (Text.unpack userInput)
-                      (Text.unpack cardAnswerText)
-                    newState1 = newState
-                      & gameState . _Just . dict . at "cardAnswer"
-                      ?~ cardAnswerText
-                      & gameState . _Just . dict . at "userAnswer"
-                      ?~ userInput
-                      & gameState . _Just . dict . at "distance"
-                      ?~ Text.pack (show answerDistance)
-                      & gameState . _Just . dict . at "endTimestamp"
-                      ?~ Text.pack (formatTime defaultTimeLocale dateTimeFormat now)
+              let currentCard = st ^?! activeCard . _Just
+                  cardAnswerText = currentCard ^. val . DB.reverse
+                  answerDistance' =
+                    restrictedDamerauLevenshteinDistance
+                    defaultEditCosts
+                    (Text.unpack userInput)
+                    (Text.unpack cardAnswerText)
+                  newState1 = newState
+                    & userAnswer ?~ userInput
+                    & answerDistance ?~ answerDistance'
+                    & reviewEndTimestamp ?~ now
 
-                continue newState1
+              continue newState1
 
-            EvKey (KChar keyPressed) [] -> case existingUserAnswer of
-              Nothing -> continue newState
-              Just _ -> do
-                let currentCardId =
-                      st ^?! gameState . _Just . cards . each . _Just . key
-                    selectedDeckId = fromJust $ snd
-                      <$> listSelectedElement (st ^. availableDecks)
-                    gameStateDict =
-                      st ^?! gameState . _Just . dict
+            EvKey (KChar keyPressed) [] -> do
+              let currentCardId =
+                    st ^?! activeCard . _Just . key
+                  selectedDeckId = snd $ fromJust
+                    $ listSelectedElement (st ^. availableDecks)
 
-                -- omnibus maybe-gating
-                result <- runMaybeT $ do
-                  ease' <- MaybeT $ return $ readMaybe [keyPressed]
-                  guard $ ease' >= 0 && ease' <= 3
+              -- omnibus maybe-gating
+              result <- runMaybeT $ do
+                ease' <- MaybeT $ return $ readMaybe [keyPressed]
+                guard $ ease' >= 0 && ease' <= 3
 
-                  startTime <- MaybeT $ return
-                    $ (gameStateDict Map.!? "startTimestamp")
-                    >>= parseTimeM False defaultTimeLocale dateTimeFormat
-                    . Text.unpack
-                  endTime <- MaybeT $ return
-                    $ (gameStateDict Map.!? "endTimestamp")
-                    >>= parseTimeM False defaultTimeLocale dateTimeFormat
-                    . Text.unpack
+                -- NOTE: checking user answer for more understandable
+                -- gating on completed reviews for ease reporting
+                _userAnswer <- MaybeT $ return $ st ^. userAnswer
+                startTime <- MaybeT $ return $ st ^. reviewStartTimestamp
+                endTime <- MaybeT $ return $ st ^. reviewEndTimestamp
+                distance <- MaybeT $ return $ st ^. answerDistance
 
-                  distance <- MaybeT $ return
-                    $ (gameStateDict Map.!? "distance")
-                    >>= readMaybe . Text.unpack
+                qiEntity <- MaybeT $ runRIO (newState ^. babel)
+                  $ runDB $ getBy
+                  $ UniqueQueueCard selectedDeckId currentCardId
+                return (toEnum ease', qiEntity, diffUTCTime endTime startTime, distance)
 
-                  qiEntity <- MaybeT $ runRIO (newState ^. babel)
-                    $ runDB $ getBy
-                    $ UniqueQueueCard selectedDeckId currentCardId
-                  return (toEnum ease', qiEntity, diffUTCTime endTime startTime, distance)
+              case result of
+                Nothing -> continue newState
+                Just (reviewEase, Entity _ qi, duration, distance) -> do
+                  runRIO (newState ^. babel) $ runDB $ do
+                    logReview selectedDeckId currentCardId
+                      distance
+                      duration
+                      reviewEase
+                      (queueItemIndex qi)
 
-                case result of
-                  Nothing -> continue newState
-                  Just (reviewEase, Entity _ qi, duration, distance) -> do
-                    runRIO (newState ^. babel) $ runDB $ do
-                      logReview selectedDeckId currentCardId
-                        distance
-                        duration
-                        reviewEase
-                        (queueItemIndex qi)
+                    rescheduleCard selectedDeckId currentCardId
+                      (distance == 0)
+                      reviewEase
 
-                      rescheduleCard selectedDeckId currentCardId
-                        (distance == 0)
-                        reviewEase
+                  prepareStandardGame $ newState
+                    & activeCard .~ Nothing
+                    & userAnswer .~ Nothing
+                    & answerDistance .~ Nothing
+                    & reviewEndTimestamp .~ Nothing
+                    & reviewStartTimestamp .~ Nothing
 
-                    prepareStandardGame $ newState
-                      & gameState . _Just
-                      %~ ((cards .~ [])
-                          . (dict .~ mempty))
             _ -> continue newState
 
         prepareStandardGame st = do
-          let selectedDeckId = fromJust $ snd
-                <$> listSelectedElement (st ^. availableDecks)
+          let selectedDeckId = snd $ fromJust
+                $ listSelectedElement (st ^. availableDecks)
 
           (dueCardsCount, nextCard) <- runRIO (st ^. babel) $ runDB $ do
             dueCardsCount <- retrieveDueCardsCount selectedDeckId
@@ -1222,13 +1178,10 @@ lifecycle = do
           newState <- maybe (return st) (loadCardMd st . entityKey) nextCard
 
           continue $ newState
-            & gameState . _Just
-            %~ ((cards %~ (nextCard:))
-                . (score .~ dueCardsCount))
-            & gameState . _Just
-            %~ (dict %~ Map.insert "startTimestamp" timestamp)
-            & view .~ (if isNothing nextCard then GameOver else Playing)
+            & reviewStartTimestamp ?~ now
+            & activeCard .~ nextCard
             & answerForm .~ answerForm'
+            & view .~ (if isNothing nextCard then GameOver else Playing)
 
         setCursorBounds st mayMinX mayMaxX mayMinY mayMaxY = do
           let oldFocusX = st ^. focusX

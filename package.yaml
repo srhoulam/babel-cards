@@ -54,7 +54,6 @@ library:
   - bytestring
   - containers
   - directory
-  - ElixirFM
   - edit-distance
   - esqueleto
   - file-embed

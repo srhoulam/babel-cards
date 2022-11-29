@@ -40,10 +40,6 @@ packages:
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
 #
 extra-deps:
-- git: https://github.com/otakar-smrz/elixir-fm.git
-  commit: 08bc422191d2d376015109207cbf82bf5196adae
-  subdirs:
-  - Haskell/ElixirFM
 - Encode-1.3.8@sha256:a93798e8ae38b3616468249eee4ce15b7cc995a04b182213bfe1292e1a0baf33,7757
 - wl-pprint-1.2.1@sha256:aea676cff4a062d7d912149d270e33f5bb0c01b68a9db46ff13b438141ff4b7c,734
 
