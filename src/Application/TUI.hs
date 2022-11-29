@@ -45,7 +45,7 @@ lifecycle = do
     $ customMain initialVty buildVty (Just eventChan) lifecycleApp
     $ initialState env eventChan
   return ()
-  where lifecycleApp = App {..} :: App BabelTUI BabelEvent String
+  where lifecycleApp = App {..} :: App BabelTUI () String
         appAttrMap _ = attrMap defAttr
           [ (listAttr, withStyle currentAttr dim)
           , (listSelectedAttr, withStyle currentAttr bold)
@@ -56,57 +56,6 @@ lifecycle = do
         appStartEvent = loadAll
 
         appHandleEvent st evt = case evt of
-          AppEvent appEvent -> case appEvent of
-            LoadCards -> loadCards st >>= continue
-            LoadCurrCardMd -> loadCurrCardMd st >>= continue
-            LoadDecks -> loadDecks st >>= continue
-            LoadDeckCards -> loadCardsForDeck st >>= continue
-            LoadTags -> loadTags st >>= continue
-            LoadTagCards -> loadCardsForTag st >>= continue
-
-            AssignCardDeck   deckId' cardId' -> do
-              runRIO (st ^. babel) $ runDB $ assignCardDeck deckId' cardId'
-              continue st
-
-            UnassignCardDeck deckId' cardId' -> do
-              runRIO (st ^. babel) $ runDB $ unassignCardDeck deckId' cardId'
-              continue st
-
-            AssignCardTag    tagId'  cardId' -> do
-              runRIO (st ^. babel) $ runDB $ assignCardTag tagId' cardId'
-              continue st
-
-            UnassignCardTag  tagId'  cardId' -> do
-              runRIO (st ^. babel) $ runDB $ unassignCardTag tagId' cardId'
-              continue st
-
-            CreateCard newCard -> do
-              _ <- runRIO (st ^. babel) $ runDB $ createCard newCard
-              continue st
-
-            DisableCard cardId' -> do
-              runRIO (st ^. babel) $ runDB $ update cardId' [ CardEnabled =. False ]
-              continue st
-
-            EnableCard cardId' -> do
-              runRIO (st ^. babel) $ runDB $ update cardId' [ CardEnabled =. True ]
-              continue st
-
-            CreateDeck deck -> do
-              _ <- runRIO (st ^. babel) $ runDB $ insert deck
-              continue st
-
-            DeleteDeck deckId' -> do
-              runRIO (st ^. babel) $ runDB $ do
-                deleteWhere [ QueueItemDeckId ==. deckId']
-                deleteWhere [ DeckMemberDeckId ==. deckId' ]
-                delete deckId'
-              continue st
-
-            CreateTag tag -> do
-              _ <- runRIO (st ^. babel) $ runDB $ insert tag
-              continue st
-
           VtyEvent event -> case st ^. view of
             Playing -> case st ^?! matchMode . _Just of
               Standard -> playStandardGame st evt event
@@ -153,11 +102,13 @@ lifecycle = do
                 EvKey KDel [] -> do
                   _ <- liftIO $ runMaybeT $ do
                     scid <- MaybeT $ return selectedCardId
-                    lift $ do
-                      writeBChan (st2 ^. chan) $ DisableCard scid
-                      writeBChan (st2 ^. chan) LoadCards
-                      writeBChan (st2 ^. chan) LoadCurrCardMd
-                  continue newState
+                    lift $ runRIO (st2 ^. babel) $ runDB
+                      $ update scid [ CardEnabled =. False ]
+
+                  loadCards newState
+                    >>= loadCurrCardMd
+                    >>= continue
+
                 EvKey (KChar 'a') [] -> continue $ newState
                   & view .~ AddNewCard
                   & cardForm .~ newCardForm'
@@ -175,38 +126,38 @@ lifecycle = do
                   _ <- liftIO $ runMaybeT $ do
                     sdid <- MaybeT $ return selectedDeckId
                     scid <- MaybeT $ return selectedCardId
-                    lift $ do
-                      writeBChan (st2 ^. chan) $ AssignCardDeck sdid scid
-                      writeBChan (st2 ^. chan) LoadCards
-                      writeBChan (st2 ^. chan) LoadCurrCardMd
-                  continue newState
+                    lift $ runRIO (newState ^. babel) $ runDB
+                      $ assignCardDeck sdid scid
+                  loadCards newState
+                    >>= loadCurrCardMd
+                    >>= continue
                 EvKey (KChar 'd') [MCtrl] -> do
                   _ <- liftIO $ runMaybeT $ do
                     sdid <- MaybeT $ return selectedDeckId
                     scid <- MaybeT $ return selectedCardId
-                    lift $ do
-                      writeBChan (st2 ^. chan) $ UnassignCardDeck sdid scid
-                      writeBChan (st2 ^. chan) LoadCards
-                      writeBChan (st2 ^. chan) LoadCurrCardMd
-                  continue newState
+                    lift $ runRIO (newState ^. babel) $ runDB
+                      $ unassignCardDeck sdid scid
+                  loadCards newState
+                    >>= loadCurrCardMd
+                    >>= continue
                 EvKey (KChar 't') [] -> do
                   _ <- liftIO $ runMaybeT $ do
                     stid <- MaybeT $ return selectedTagId
                     scid <- MaybeT $ return selectedCardId
-                    lift $ do
-                      writeBChan (st2 ^. chan) $ AssignCardTag stid scid
-                      writeBChan (st2 ^. chan) LoadCards
-                      writeBChan (st2 ^. chan) LoadCurrCardMd
-                  continue newState
+                    lift $ runRIO (newState ^. babel) $ runDB
+                      $ assignCardTag stid scid
+                  loadCards newState
+                    >>= loadCurrCardMd
+                    >>= continue
                 EvKey (KChar 't') [MCtrl] -> do
                   _ <- liftIO $ runMaybeT $ do
                     stid <- MaybeT $ return selectedTagId
                     scid <- MaybeT $ return selectedCardId
-                    lift $ do
-                      writeBChan (st2 ^. chan) $ UnassignCardTag stid scid
-                      writeBChan (st2 ^. chan) LoadCards
-                      writeBChan (st2 ^. chan) LoadCurrCardMd
-                  continue newState
+                    lift $ runRIO (newState ^. babel) $ runDB
+                      $ unassignCardTag stid scid
+                  loadCards newState
+                    >>= loadCurrCardMd
+                    >>= continue
                 _ -> continue newState
 
             CardsOverviewDisabled -> do
@@ -224,11 +175,11 @@ lifecycle = do
                 EvKey KEnter [] -> do
                   _ <- liftIO $ runMaybeT $ do
                     scid <- MaybeT $ return selectedCardId
-                    lift $ do
-                      writeBChan (newState ^. chan) $ EnableCard scid
-                      writeBChan (newState ^. chan) LoadCards
-                      writeBChan (newState ^. chan) LoadCurrCardMd
-                  continue newState
+                    lift $ runRIO (newState ^. babel) $ runDB
+                      $ update scid [ CardEnabled =. True ]
+                  loadCards newState
+                    >>= loadCurrCardMd
+                    >>= continue
                 _ -> continue newState
 
             DecksOverview -> do
@@ -254,9 +205,14 @@ lifecycle = do
 
               case event of
                 EvKey KEsc [] -> returnToStart newState
-                EvKey KEnter [] -> loadCardsForTag
-                  (newState & view .~ TagManagement)
-                  >>= continue
+                EvKey KEnter [] ->
+                  -- NOTE: this ignores hitting inter with no tag selected
+                  --       it would otherwise cause a crash
+                  case listSelectedElement (st ^. availableTags) of
+                    Just _ -> loadCardsForTag
+                      (newState & view .~ TagManagement)
+                      >>= continue
+                    Nothing -> continue newState
                 EvKey (KChar 'a') [] -> continue $ newState
                   & view .~ AddNewTag
                   & answerForm .~ answerForm'
@@ -268,19 +224,15 @@ lifecycle = do
                   selectedCardIdMay = listSelectedElement (st ^. availableCardsEnabled)
 
               case event of
-                EvKey KEsc [] -> returnToPreviousView
-                  $ newState
-                  & previousView .~ Nothing
+                EvKey KEsc [] -> returnToPreviousView newState
                 EvKey (KChar 'd') [MCtrl] -> do
                   liftIO $ forM_ selectedCardIdMay $ \(_, selectedCardId) -> do
-                    runRIO (st ^. babel) $ runDB $ update selectedCardId
+                    runRIO (newState ^. babel) $ runDB $ update selectedCardId
                       [ CardObverse =. formState updatedForm ^. obverse
                       , CardReverse =. formState updatedForm ^. reverse
                       ]
 
-                  returnToPreviousView
-                    $ newState
-                    & previousView .~ Nothing
+                  returnToPreviousView newState
 
                 _ -> continue newState
 
@@ -301,19 +253,19 @@ lifecycle = do
                 EvKey KDel [] -> do
                   _ <- liftIO $ runMaybeT $ do
                     scid <- MaybeT $ return selectedCardId
-                    lift $ do
-                      writeBChan (newState ^. chan) $ DisableCard scid
-                      writeBChan (newState ^. chan) LoadDeckCards
-                  continue newState
+                    lift $ runRIO (newState ^. babel) $ runDB $ update scid [ CardEnabled =. False ]
+
+                  loadCardsForDeck newState
+                    >>= continue
 
                 EvKey (KChar 'd') [MCtrl] -> do
                   _ <- liftIO $ runMaybeT $ do
                     sdid <- MaybeT $ return selectedDeckId
                     scid <- MaybeT $ return selectedCardId
-                    lift $ do
-                      writeBChan (newState ^. chan) $ UnassignCardDeck sdid scid
-                      writeBChan (newState ^. chan) LoadDeckCards
-                  continue newState
+                    lift $ runRIO (newState ^. babel) $ runDB
+                      $ unassignCardDeck sdid scid
+                  loadCardsForDeck newState
+                    >>= continue
 
                 EvKey (KChar 'e') [] -> do
                   let selectedCardMay' = selectedCardId
@@ -346,10 +298,10 @@ lifecycle = do
                   _ <- liftIO $ runMaybeT $ do
                     stid <- MaybeT $ return selectedTagId
                     scid <- MaybeT $ return selectedCardId
-                    lift $ do
-                      writeBChan (newState ^. chan) $ UnassignCardTag stid scid
-                      writeBChan (newState ^. chan) LoadTagCards
-                  continue newState
+                    lift $ runRIO (newState ^. babel) $ runDB
+                      $ unassignCardTag stid scid
+                  loadCardsForTag newState
+                    >>= continue
 
                 EvKey (KChar 'e') [] -> do
                   let selectedCardMay' = selectedCardId
@@ -371,17 +323,12 @@ lifecycle = do
                 EvKey KEsc [] ->
                   continue $ newState & view .~ CardsOverview
                 EvKey (KChar 'd') [MCtrl] -> do
-                  liftIO $ do
-                    -- _ <- runRIO (st ^. babel) $ runDB $ createCard $ formState updatedForm
-                    writeBChan (newState ^. chan) $ CreateCard $ formState updatedForm
-                    writeBChan (newState ^. chan) LoadTags
-                    writeBChan (newState ^. chan) LoadCards
-                    writeBChan (newState ^. chan) LoadCurrCardMd
-                  -- loadTags (newState & view .~ CardsOverview)
-                  --   >>= loadCards
-                  --   >>= loadCurrCardMd
-                  --   >>= continue
-                  continue (newState & view .~ CardsOverview)
+                  _ <- liftIO $ runRIO (newState ^. babel) $ runDB
+                       $ createCard $ formState updatedForm
+                  loadTags (newState & view .~ CardsOverview)
+                    >>= loadCards
+                    >>= loadCurrCardMd
+                    >>= continue
                 _ -> continue newState
 
             AddNewTag -> do
@@ -390,10 +337,10 @@ lifecycle = do
               case event of
                 EvKey KEsc [] -> continue $ newState & view .~ TagsOverview
                 EvKey KEnter [] -> do
-                  liftIO $ do
-                    writeBChan (newState ^. chan) $ CreateTag $ Tag $ formState updatedForm
-                    writeBChan (newState ^. chan) LoadTags
-                  continue $ newState & view .~ TagsOverview
+                  _ <- liftIO $ runRIO (newState ^. babel) $ runDB
+                       $ insert $ Tag $ formState updatedForm
+                  loadTags (newState & view .~ TagsOverview)
+                    >>= continue
                 _ -> continue newState
 
             AddNewDeck -> do
@@ -403,10 +350,10 @@ lifecycle = do
                 EvKey KEsc [] ->
                   continue $ newState & view .~ DecksOverview
                 EvKey (KChar 'd') [MCtrl] -> do
-                  liftIO $ do
-                    writeBChan (newState ^. chan) $ CreateDeck $ formState updatedForm
-                    writeBChan (newState ^. chan) LoadDecks
-                  continue $ newState & view .~ DecksOverview
+                  _ <- liftIO $ runRIO (newState ^. babel) $ runDB
+                       $ insert $ formState updatedForm
+                  loadDecks (newState & view .~ DecksOverview)
+                    >>= continue
                 _ -> continue newState
 
             DeleteDeckConfirm -> do
@@ -425,10 +372,12 @@ lifecycle = do
                 EvKey KEnter [] -> do
                   case (userInputMatchesName, selectedDeckId) of
                     (True, deckId') -> do
-                      liftIO $ do
-                        writeBChan (st ^. chan) $ DeleteDeck deckId'
-                        writeBChan (newState ^. chan) LoadDecks
-                      continue $ newState & view .~ DecksOverview
+                      liftIO $ runRIO (newState ^. babel) $ runDB $ do
+                          deleteWhere [ QueueItemDeckId ==. deckId']
+                          deleteWhere [ DeckMemberDeckId ==. deckId' ]
+                          delete deckId'
+                      loadDecks (newState & view .~ DecksOverview)
+                        >>= continue
                     _ -> continue newState
                 _ -> continue newState
 
@@ -760,7 +709,6 @@ lifecycle = do
           { babelTUIBabel = env
           , babelTUIPreviousView = Nothing
           , babelTUIView = Start
-          , babelTUIChan = chan'
 
           , babelTUIMatchMode = Nothing
           , babelTUIActiveCard = Nothing
@@ -952,18 +900,23 @@ lifecycle = do
 
         returnToPreviousView st = do
           let nextView = fromMaybe CardsOverview $ st ^. previousView
+              newState = st
+                & view .~ nextView
+                & previousView .~ Nothing
           case nextView of
             TagManagement -> do
               loadCardsForTag
-                (st & view .~ nextView)
+                (newState & view .~ nextView)
+                >>= loadCurrCardMd
                 >>= continue
             DeckManagement -> do
               loadCardsForDeck
-                (st & view .~ nextView)
+                (newState & view .~ nextView)
+                >>= loadCurrCardMd
                 >>= continue
             _ -> do
               loadTags
-                (st & view .~ nextView)
+                (newState & view .~ nextView)
                 >>= loadCards
                 >>= loadCurrCardMd
                 >>= continue

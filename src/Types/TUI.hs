@@ -18,7 +18,6 @@ data BabelTUI = BabelTUI
   { babelTUIBabel                  :: !Babel
   , babelTUIView                   :: !BabelView
   , babelTUIPreviousView           :: !(Maybe BabelView)
-  , babelTUIChan                   :: !(BChan BabelEvent)
 
   -- Review state
   , babelTUIMatchMode              :: !(Maybe BabelMode)
@@ -44,9 +43,9 @@ data BabelTUI = BabelTUI
   , babelTUIDeckMap                :: !(IntMap DeckMetadata)
   , babelTUITagMap                 :: !(IntMap (Entity Tag))
 
-  , babelTUIAnswerForm             :: !(Form Text BabelEvent String)
-  , babelTUICardForm               :: !(Form CardFormState BabelEvent String)
-  , babelTUIDeckForm               :: !(Form Deck BabelEvent String)
+  , babelTUIAnswerForm             :: !(Form Text () String)
+  , babelTUICardForm               :: !(Form CardFormState () String)
+  , babelTUIDeckForm               :: !(Form Deck () String)
 
   -- Display lists
   , babelTUIActiveCardDecks        :: !(GenericList String Seq DeckId)
@@ -60,29 +59,6 @@ data BabelTUI = BabelTUI
   , babelTUIAvailableTags          :: !(GenericList String Seq TagId)
   , babelTUIStartOptions           :: !(GenericList String Seq (BabelView, String))
   }
-
-
-data BabelEvent =
-  AssignCardDeck DeckId CardId
-  | UnassignCardDeck DeckId CardId
-  | AssignCardTag TagId CardId
-  | UnassignCardTag TagId CardId
-  | CreateCard CardFormState
-  | EditCard CardId CardFormState
-  | DisableCard CardId
-  | EnableCard CardId
-
-  | CreateDeck Deck
-  | DeleteDeck DeckId
-
-  | CreateTag Tag
-
-  | LoadCards
-  | LoadCurrCardMd
-  | LoadDecks
-  | LoadDeckCards
-  | LoadTags
-  | LoadTagCards
 
 
 data BabelMode =
