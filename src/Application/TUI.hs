@@ -19,7 +19,6 @@ import           Brick.Widgets.Center             (hCenter, vCenter)
 import           Brick.Widgets.List               hiding (reverse)
 import           Control.Monad.Trans.Maybe
 import qualified Data.IntMap.Strict               as IntMap
-import qualified Data.Map.Strict                  as Map
 import           Data.Maybe                       (fromJust)
 import qualified Data.Sequence                    as Seq (fromList)
 import           Data.String.Interpolate.IsString
@@ -89,13 +88,6 @@ lifecycle = do
               runRIO (st ^. babel) $ runDB $ update cardId' [ CardEnabled =. False ]
               continue st
 
-            EditCard cardId' cardFormState -> do
-              runRIO (st ^. babel) $ runDB $ update cardId'
-                [ CardObverse =. cardFormState ^. obverse
-                , CardReverse =. cardFormState ^. reverse
-                ]
-              continue st
-
             EnableCard cardId' -> do
               runRIO (st ^. babel) $ runDB $ update cardId' [ CardEnabled =. True ]
               continue st
@@ -116,7 +108,7 @@ lifecycle = do
               continue st
 
           VtyEvent event -> case st ^. view of
-            Playing -> case fromJust $ st ^. matchMode of
+            Playing -> case st ^?! matchMode . _Just of
               Standard -> playStandardGame st evt event
               Reverse  -> playReverseGame st evt event
 
@@ -176,6 +168,7 @@ lifecycle = do
                   case cardMay of
                     Just card -> continue $ newState
                       & view .~ CardManagement
+                      & previousView ?~ CardsOverview
                       & cardForm .~ editCardForm' (card ^. obverse) (card ^. reverse)
                     Nothing -> continue newState
                 EvKey (KChar 'd') [] -> do
@@ -275,18 +268,20 @@ lifecycle = do
                   selectedCardIdMay = listSelectedElement (st ^. availableCardsEnabled)
 
               case event of
-                EvKey KEsc [] ->
-                  continue $ newState & view .~ CardsOverview
+                EvKey KEsc [] -> returnToPreviousView
+                  $ newState
+                  & previousView .~ Nothing
                 EvKey (KChar 'd') [MCtrl] -> do
                   liftIO $ forM_ selectedCardIdMay $ \(_, selectedCardId) -> do
-                    writeBChan (newState ^. chan)
-                      $ EditCard selectedCardId (formState updatedForm)
-                    writeBChan (newState ^. chan) LoadTags
-                    writeBChan (newState ^. chan) LoadCards
-                    writeBChan (newState ^. chan) LoadCurrCardMd
-                  continue $ newState
-                    & view .~ CardsOverview
-                    & cardForm .~ newCardForm'
+                    runRIO (st ^. babel) $ runDB $ update selectedCardId
+                      [ CardObverse =. formState updatedForm ^. obverse
+                      , CardReverse =. formState updatedForm ^. reverse
+                      ]
+
+                  returnToPreviousView
+                    $ newState
+                    & previousView .~ Nothing
+
                 _ -> continue newState
 
             DeckManagement -> do
@@ -310,6 +305,7 @@ lifecycle = do
                       writeBChan (newState ^. chan) $ DisableCard scid
                       writeBChan (newState ^. chan) LoadDeckCards
                   continue newState
+
                 EvKey (KChar 'd') [MCtrl] -> do
                   _ <- liftIO $ runMaybeT $ do
                     sdid <- MaybeT $ return selectedDeckId
@@ -318,6 +314,18 @@ lifecycle = do
                       writeBChan (newState ^. chan) $ UnassignCardDeck sdid scid
                       writeBChan (newState ^. chan) LoadDeckCards
                   continue newState
+
+                EvKey (KChar 'e') [] -> do
+                  let selectedCardMay' = selectedCardId
+                        >>= (IntMap.!?) (st ^. cardMapEnabled) . keyToInt
+                  cardMay <- forM selectedCardMay' $ return . entityVal
+                  case cardMay of
+                    Just card -> continue $ newState
+                      & view .~ CardManagement
+                      & cardForm .~ editCardForm' (card ^. obverse) (card ^. reverse)
+                      & previousView ?~ DeckManagement
+                    Nothing -> continue newState
+
                 _             -> continue newState
 
             TagManagement -> do
@@ -342,6 +350,18 @@ lifecycle = do
                       writeBChan (newState ^. chan) $ UnassignCardTag stid scid
                       writeBChan (newState ^. chan) LoadTagCards
                   continue newState
+
+                EvKey (KChar 'e') [] -> do
+                  let selectedCardMay' = selectedCardId
+                        >>= (IntMap.!?) (st ^. cardMapEnabled) . keyToInt
+                  cardMay <- forM selectedCardMay' $ return . entityVal
+                  case cardMay of
+                    Just card -> continue $ newState
+                      & view .~ CardManagement
+                      & cardForm .~ editCardForm' (card ^. obverse) (card ^. reverse)
+                      & previousView ?~ TagManagement
+                    Nothing -> continue newState
+
                 _             -> continue newState
 
             AddNewCard -> do
@@ -352,11 +372,16 @@ lifecycle = do
                   continue $ newState & view .~ CardsOverview
                 EvKey (KChar 'd') [MCtrl] -> do
                   liftIO $ do
+                    -- _ <- runRIO (st ^. babel) $ runDB $ createCard $ formState updatedForm
                     writeBChan (newState ^. chan) $ CreateCard $ formState updatedForm
                     writeBChan (newState ^. chan) LoadTags
                     writeBChan (newState ^. chan) LoadCards
                     writeBChan (newState ^. chan) LoadCurrCardMd
-                  continue $ newState & view .~ CardsOverview
+                  -- loadTags (newState & view .~ CardsOverview)
+                  --   >>= loadCards
+                  --   >>= loadCurrCardMd
+                  --   >>= continue
+                  continue (newState & view .~ CardsOverview)
                 _ -> continue newState
 
             AddNewTag -> do
@@ -573,6 +598,7 @@ lifecycle = do
                      (st ^. focusX == 2)
                      $ st ^. availableCardsEnabled
                    , hCenter $ str "Press DEL to disable the selected card."
+                   , hCenter $ str "Press E to edit the selected card."
                    , hCenter $ str "Press Ctrl+D to unassign the selected card from this deck."
                    -- TODO: deck form for editing the active deck's
                    --       name and desc
@@ -592,6 +618,7 @@ lifecycle = do
                      (st ^. focusX == 2)
                      $ st ^. availableCardsEnabled
                    , hCenter $ str "Press DEL to disable the selected card."
+                   , hCenter $ str "Press E to edit the selected card."
                    , hCenter $ str "Press Ctrl+T to unassign the selected card from this tag."
                    -- TODO: tag form for editing the active tag's
                    --       name and desc
@@ -731,6 +758,7 @@ lifecycle = do
 
         initialState env chan' = BabelTUI
           { babelTUIBabel = env
+          , babelTUIPreviousView = Nothing
           , babelTUIView = Start
           , babelTUIChan = chan'
 
@@ -813,8 +841,8 @@ lifecycle = do
         loadAll = loadModes >=> loadDecks >=> loadTags >=> loadCards
 
         loadCurrCardMd st = do
-          let selectedCardId = fmap snd
-                $ listSelectedElement
+          let selectedCardId = snd
+                <$> listSelectedElement
                 (st ^. availableCardsEnabled)
 
           maybe (return st) (loadCardMd st) selectedCardId
@@ -904,7 +932,6 @@ lifecycle = do
             & deckMap .~ dmap
             & availableDecks .~ list "availableDecks" (Seq.fromList deckIds) 1
 
-        -- TODO: load modes from files, when lua scripting is implemented
         loadModes st = return $ st
           & availableModes .~ list "availableModes" (Seq.fromList [Standard, Reverse]) 1
 
@@ -922,6 +949,24 @@ lifecycle = do
             $ st
             & tagMap  .~ tmap
             & availableTags  .~ newTagsList
+
+        returnToPreviousView st = do
+          let nextView = fromMaybe CardsOverview $ st ^. previousView
+          case nextView of
+            TagManagement -> do
+              loadCardsForTag
+                (st & view .~ nextView)
+                >>= continue
+            DeckManagement -> do
+              loadCardsForDeck
+                (st & view .~ nextView)
+                >>= continue
+            _ -> do
+              loadTags
+                (st & view .~ nextView)
+                >>= loadCards
+                >>= loadCurrCardMd
+                >>= continue
 
         returnToStart st = loadAll
           (st & view .~ Start)
@@ -1031,7 +1076,7 @@ lifecycle = do
             EvKey KEnter [] -> do
               now <- getCurrentTime
 
-              let currentCard = fromJust $ st ^. activeCard
+              let currentCard = st ^?! activeCard . _Just
                   cardAnswerText = currentCard ^. val . DB.obverse
                   answerDistance' =
                     restrictedDamerauLevenshteinDistance
@@ -1172,9 +1217,6 @@ lifecycle = do
             return (dueCardsCount, nextCard)
 
           now <- getCurrentTime
-          let timestamp = Text.pack
-                $ formatTime defaultTimeLocale dateTimeFormat now
-
           newState <- maybe (return st) (loadCardMd st . entityKey) nextCard
 
           continue $ newState
@@ -1199,7 +1241,7 @@ lifecycle = do
             & focusX .~ newFocusX
             & focusY .~ newFocusY
 
-        dateTimeFormat = iso8601DateFormat (Just "%H:%M:%S")
+        -- dateTimeFormat = iso8601DateFormat (Just "%H:%M:%S")
 
         copyrightNotice = vBox
           $ hCenter <$>

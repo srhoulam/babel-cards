@@ -17,6 +17,7 @@ import           Types
 data BabelTUI = BabelTUI
   { babelTUIBabel                  :: !Babel
   , babelTUIView                   :: !BabelView
+  , babelTUIPreviousView           :: !(Maybe BabelView)
   , babelTUIChan                   :: !(BChan BabelEvent)
 
   -- Review state
