@@ -4,14 +4,13 @@
 {-# LANGUAGE TemplateHaskell        #-}
 module Types.TUI where
 
-import           Brick.BChan            (BChan)
 import           Brick.Forms            (Form)
 import           Brick.Widgets.List     (GenericList)
-import RIO.Time (UTCTime)
 import           Database.Persist.Types (Entity)
 import           Lens.Micro.TH
 import           Model
 import           RIO                    hiding (view)
+import           RIO.Time               (UTCTime)
 import           Types
 
 data BabelTUI = BabelTUI
@@ -25,7 +24,7 @@ data BabelTUI = BabelTUI
   , babelTUIUserAnswer             :: !(Maybe Text)
   , babelTUIAnswerDistance         :: !(Maybe Int)
   , babelTUIReviewStartTimestamp   :: !(Maybe UTCTime)
-  , babelTUIReviewEndTimestamp   :: !(Maybe UTCTime)
+  , babelTUIReviewEndTimestamp     :: !(Maybe UTCTime)
 
   , babelTUIFocusX                 :: !Int
   -- ^ Left-to-right focus.
@@ -58,6 +57,9 @@ data BabelTUI = BabelTUI
   , babelTUIAvailableModes         :: !(GenericList String Seq BabelMode)
   , babelTUIAvailableTags          :: !(GenericList String Seq TagId)
   , babelTUIStartOptions           :: !(GenericList String Seq (BabelView, String))
+
+  -- Interactive state
+  , babelTUICardFilter             :: !(Maybe Text)
   }
 
 
@@ -77,6 +79,7 @@ data BabelView =
   | CardsOverview
   | CardsOverviewDisabled
   | CardManagement
+  | SetCardFilter
 
   | AddNewDeck
   | DecksOverview

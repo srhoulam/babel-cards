@@ -1,8 +1,10 @@
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE RecordWildCards   #-}
 module Application.Database (module Application.Database) where
 
 import           Control.Monad.Trans.Maybe
+import Data.String.Interpolate.IsString
 import qualified Data.Text                 as Text (lines)
 import qualified Database.Esqueleto        as E
 import           Database.Persist          as Application.Database
@@ -129,6 +131,27 @@ retrieveCardsDisabled =
               ]
     return card
 
+retrieveCardsDisabledFilter :: Text -> BabelQuery [Entity Card]
+retrieveCardsDisabledFilter filterText =
+  E.select $ E.from $ \(card `E.LeftOuterJoin` tm `E.LeftOuterJoin` dm) -> do
+    E.on $ card E.^. CardId           E.==. dm   E.^. DeckMemberCardId
+    E.on $ card E.^. CardId           E.==. tm   E.^. TagMemberCardId
+
+    E.groupBy $ card E.^. CardId
+    let numDecks = E.countDistinct $ dm E.^. DeckMemberId :: E.SqlExpr (E.Value Int)
+        numTags  = E.countDistinct $ tm E.^. TagMemberId  :: E.SqlExpr (E.Value Int)
+    E.where_ $ E.not_ (card E.^. CardEnabled)
+      E.&&. ((card E.^. CardObverse
+              `E.like` (E.%) E.++. E.val filterText E.++. (E.%))
+             E.||. (card E.^. CardReverse
+                    `E.like` (E.%) E.++. E.val filterText E.++. (E.%)))
+
+    E.orderBy [ E.asc numDecks
+              , E.asc numTags
+              , E.asc $ card E.^. CardObverse
+              ]
+    return card
+
 retrieveCardsEnabled :: BabelQuery [Entity Card]
 retrieveCardsEnabled =
   E.select $ E.from $ \(card `E.LeftOuterJoin` tm `E.LeftOuterJoin` dm) -> do
@@ -139,6 +162,27 @@ retrieveCardsEnabled =
     let numDecks = E.countDistinct $ dm E.^. DeckMemberId :: E.SqlExpr (E.Value Int)
         numTags  = E.countDistinct $ tm E.^. TagMemberId  :: E.SqlExpr (E.Value Int)
     E.where_ $ card E.^. CardEnabled
+    E.orderBy [ E.asc numDecks
+              , E.asc numTags
+              , E.asc $ card E.^. CardObverse
+              ]
+    return card
+
+retrieveCardsEnabledFilter :: Text -> BabelQuery [Entity Card]
+retrieveCardsEnabledFilter filterText =
+  E.select $ E.from $ \(card `E.LeftOuterJoin` tm `E.LeftOuterJoin` dm) -> do
+    E.on $ card E.^. CardId           E.==. dm   E.^. DeckMemberCardId
+    E.on $ card E.^. CardId           E.==. tm   E.^. TagMemberCardId
+
+    E.groupBy $ card E.^. CardId
+    let numDecks = E.countDistinct $ dm E.^. DeckMemberId :: E.SqlExpr (E.Value Int)
+        numTags  = E.countDistinct $ tm E.^. TagMemberId  :: E.SqlExpr (E.Value Int)
+    E.where_ $ (card E.^. CardEnabled)
+      E.&&. ((card E.^. CardObverse
+              `E.like` (E.%) E.++. E.val filterText E.++. (E.%))
+             E.||. (card E.^. CardReverse
+                    `E.like` (E.%) E.++. E.val filterText E.++. (E.%)))
+
     E.orderBy [ E.asc numDecks
               , E.asc numTags
               , E.asc $ card E.^. CardObverse

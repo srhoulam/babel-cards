@@ -38,12 +38,12 @@ import           Types.TUI
 lifecycle :: RIO Babel ()
 lifecycle = do
   env <- ask
-  eventChan <- liftIO $ newBChan 10
+  eventChan <- liftIO $ newBChan 100
   let buildVty = Graphics.Vty.mkVty Graphics.Vty.defaultConfig
   initialVty <- liftIO buildVty
   _ <- liftIO
     $ customMain initialVty buildVty (Just eventChan) lifecycleApp
-    $ initialState env eventChan
+    $ initialState env
   return ()
   where lifecycleApp = App {..} :: App BabelTUI () String
         appAttrMap _ = attrMap defAttr
@@ -140,6 +140,18 @@ lifecycle = do
                   loadCards newState
                     >>= loadCurrCardMd
                     >>= continue
+                EvKey (KChar 'f') [] -> do
+                  let answerFormPrefilled = newForm
+                        [ editTextField id "userEntry" (Just 1) ]
+                        $ fromMaybe mempty
+                        $ newState ^. cardFilter
+                  continue $ newState
+                    & view .~ SetCardFilter
+                    & answerForm .~ answerFormPrefilled
+                EvKey (KChar 'f') [MCtrl] ->
+                  loadCards (newState & cardFilter .~ Nothing)
+                    >>= loadCurrCardMd
+                    >>= continue
                 EvKey (KChar 't') [] -> do
                   _ <- liftIO $ runMaybeT $ do
                     stid <- MaybeT $ return selectedTagId
@@ -180,6 +192,20 @@ lifecycle = do
                   loadCards newState
                     >>= loadCurrCardMd
                     >>= continue
+                _ -> continue newState
+
+            SetCardFilter -> do
+              updatedForm <- handleFormEvent evt $ st ^. answerForm
+              let newState = st & answerForm .~ updatedForm
+              case event of
+                EvKey KEsc [] -> continue $ newState & view .~ CardsOverview
+                EvKey KEnter [] -> loadCards
+                  (newState
+                   & cardFilter ?~ formState updatedForm
+                   & view .~ CardsOverview)
+                  >>= loadCurrCardMd
+                  >>= continue
+
                 _ -> continue newState
 
             DecksOverview -> do
@@ -467,16 +493,30 @@ lifecycle = do
                     (st ^. focusX == 2)
                     $ st ^. availableCardsEnabled
                   ]
-                , hCenter $ str "Switch lists with left/right keys."
-                , hCenter $ str "Select list options with up/down keys."
-                , hCenter $ str "Press A to add a new card."
-                , hCenter $ str "Press E to edit a card."
-                , hCenter $ str "Press T to assign the selected tag to a card."
-                , hCenter $ str "Press D to assign the selected deck to a card."
-                , hCenter $ str "Press Ctrl+T to unassign the selected tag from a card."
-                , hCenter $ str "Press Ctrl+D to unassign the selected deck from a card."
-                , hCenter $ str "Press INS to manage disabled cards."
-                , hCenter $ str "Press DEL to disable the selected card."
+                , hBox
+                  [ hCenter $ str "Switch lists with left/right keys."
+                  , hCenter $ str "Select list options with up/down keys."
+                  ]
+                , hBox
+                  [ hCenter $ str "Press F to filter the cards shown."
+                  , hCenter $ str "Press Ctrl+F to remove the card filter."
+                  ]
+                , hBox
+                  [ hCenter $ str "Press A to add a new card."
+                  , hCenter $ str "Press E to edit a card."
+                  ]
+                , hBox
+                  [ hCenter $ str "Press T to assign the selected tag to a card."
+                  , hCenter $ str "Press D to assign the selected deck to a card."
+                  ]
+                , hBox
+                  [ hCenter $ str "Press Ctrl+T to unassign the selected tag from a card."
+                  , hCenter $ str "Press Ctrl+D to unassign the selected deck from a card."
+                  ]
+                , hBox
+                  [ hCenter $ str "Press INS to manage disabled cards."
+                  , hCenter $ str "Press DEL to disable the selected card."
+                  ]
                 , hCenter $ str "Press ESC to return."
                 ]
 
@@ -492,6 +532,16 @@ lifecycle = do
                   $ st ^. availableCardsDisabled
                 , hCenter $ str "Press ENTER to enable a card."
                 , hCenter $ str "Press ESC to return."
+                ]
+
+              SetCardFilter -> applicationTitle
+                $ vBox
+                [ hBorderWithLabel (str "Filter Cards")
+                , hCenter $ str "Only cards containing what you enter here will be displayed."
+                , hCenter $ str "Filters apply to both the obverse and reverse of cards."
+                , hCenter $ border $ renderForm $ st ^. answerForm
+                , hCenter $ str "Press ENTER to apply."
+                , hCenter $ str "Press ESC to cancel."
                 ]
 
               DecksOverview -> applicationTitle
@@ -705,7 +755,7 @@ lifecycle = do
 
         applicationTitle = borderWithLabel (str "BabelCards")
 
-        initialState env chan' = BabelTUI
+        initialState env = BabelTUI
           { babelTUIBabel = env
           , babelTUIPreviousView = Nothing
           , babelTUIView = Start
@@ -746,6 +796,8 @@ lifecycle = do
                , (Credits, "About")
                ])
               1
+
+          , babelTUICardFilter = Nothing
           }
 
         answerForm' = newForm
@@ -807,7 +859,10 @@ lifecycle = do
 
         loadCards = loadCardsEnabled >=> loadCardsDisabled
         loadCardsDisabled st = do
-          availCards <- runRIO (st ^. babel) $ runDB retrieveCardsDisabled
+          availCards <- runRIO (st ^. babel) $ runDB
+            $ maybe retrieveCardsDisabled retrieveCardsDisabledFilter
+            $ st ^. cardFilter
+
           let cmap = IntMap.fromList
                 $ (\ce -> (keyToInt $ ce ^. key, ce))
                 <$> availCards
@@ -821,7 +876,10 @@ lifecycle = do
             & availableCardsDisabled .~ newCardsList
 
         loadCardsEnabled st = do
-          availCards <- runRIO (st ^. babel) $ runDB retrieveCardsEnabled
+          availCards <- runRIO (st ^. babel) $ runDB
+            $ maybe retrieveCardsEnabled retrieveCardsEnabledFilter
+            $ st ^. cardFilter
+
           let cmap = IntMap.fromList
                 $ (\ce -> (keyToInt $ ce ^. key, ce))
                 <$> availCards
