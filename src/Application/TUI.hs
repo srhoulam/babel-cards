@@ -1257,7 +1257,7 @@ lifecycle = do
         copyrightNotice = vBox
           $ hCenter <$>
           [ str "BabelCards v0.1.0"
-          , str "Copyright (c) 2021-2022 Saad Rhoulam"
+          , str "Copyright (c) 2021 Saad Rhoulam"
           , str "BabelCards comes with ABSOLUTELY NO WARRANTY."
           , str "BabelCards is distributed under the GPLv3 license."
           , hBorder

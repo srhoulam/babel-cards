@@ -4,24 +4,12 @@ github:              srhoulam/babel-cards
 license:             GPL-3
 author:              Saad Rhoulam
 maintainer:          saad@rhoulam.com
-copyright:           Copyright 2021 Saad Rhoulam, all rights reserved.
+copyright:           Copyright 2021 Saad Rhoulam.
 
 synopsis: A flash-cards memorization tool.
 description: "A flash-cards memorization tool.
 
-Babel Cards is a flash-cards memorization tool like Anki,
-but, the author hopes, without its shortcomings.
-
-Whereas Anki stores behavior specifications in cards, limiting
-the usage of sets of cards and demanding duplication of the same
-data set, Babel Cards will instead separate behavior out so you
-can mix-and-match card decks and application behavior.
-
-Whereas Anki's data model is painful for power users, Babel Cards
-will use native database representations whenever possible and
-not store serialized objects in text columns. The user's data
-belongs to the user, and should be usable to the user even in the
-absence of the application that created it.
+Babel Cards is a TUI flash-cards memorization not unlike Anki.
 "
 
 category: Education

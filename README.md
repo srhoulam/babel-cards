@@ -1,10 +1,19 @@
-# babel-cards
+# Babel Cards
 
-## Execute  
+A TUI flash cards application.
 
-* Run `stack exec -- babel-cards-exe` to see "We're inside the application!"
-* With `stack exec -- babel-cards-exe --verbose` you will see the same message, with more logging.
+For right-to-left languages, you will need to start babel-cards from within [bicon](https://github.com/behdad/bicon).
 
-## Run tests
+## [Development Blog](https://www.rhoulam.tech/blog/tags/babel-cards.html)
 
-`stack test`
+## Building
+
+`stack build`
+
+## Usage
+
+`stack exec -- babel-cards`
+
+## Environment Variables
+
+`BABEL_DATABASE` can be used to provide a path to a different SQLite3 database than the default.

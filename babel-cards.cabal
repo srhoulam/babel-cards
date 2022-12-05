@@ -4,21 +4,19 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6f7185888cb6f6b8d75f48b073a27cc2471605c905e4bef74ae01af8f7dd6ac1
+-- hash: 4e7b5ea942f886e6684a01f0d62a2885b61c07b116089b176acea1bc121816ec
 
 name:           babel-cards
 version:        0.1.0
 synopsis:       A flash-cards memorization tool.
 description:    A flash-cards memorization tool.
-                Babel Cards is a flash-cards memorization tool like Anki, but, the author hopes, without its shortcomings.
-                Whereas Anki stores behavior specifications in cards, limiting the usage of sets of cards and demanding duplication of the same data set, Babel Cards will instead separate behavior out so you can mix-and-match card decks and application behavior.
-                Whereas Anki's data model is painful for power users, Babel Cards will use native database representations whenever possible and not store serialized objects in text columns. The user's data belongs to the user, and should be usable to the user even in the absence of the application that created it. 
+                Babel Cards is a TUI flash-cards memorization not unlike Anki. 
 category:       Education
 homepage:       https://github.com/srhoulam/babel-cards#readme
 bug-reports:    https://github.com/srhoulam/babel-cards/issues
 author:         Saad Rhoulam
 maintainer:     saad@rhoulam.com
-copyright:      Copyright 2021 Saad Rhoulam, all rights reserved.
+copyright:      Copyright 2021 Saad Rhoulam.
 license:        GPL-3
 build-type:     Simple
 extra-source-files:
